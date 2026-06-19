@@ -1,0 +1,9 @@
+[project]
+name = "sagewell"
+version = "0.1.0"
+description = "Sagewell V1 enterprise RAG (M0: access decision pure + RBAC suite)."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

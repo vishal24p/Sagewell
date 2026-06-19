@@ -38,7 +38,7 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M0 — Access Decision (pure).**
+**M1 — Schema, Migrations, Fixtures, Indexes.**
 
 Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 
@@ -48,7 +48,7 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 
 | Milestone | Description | Date |
 |---|---|---|
-| (none) | No source code or tests exist yet. | — |
+| M0 | Access Decision (pure) and RBAC Access Outcome Suite. | 2026-06-19 |
 
 ### Completed In Documentation
 
@@ -67,7 +67,15 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 
 | Milestone | Description | Owner | Started |
 |---|---|---|---|
-| M0 | Access Decision (pure). | (none assigned) | (not started) |
+| M1 | Schema, Migrations, Fixtures, Indexes. | (none assigned) | 2026-06-19 |
+
+---
+
+## Recently Completed
+
+| Date | Item |
+|---|---|
+| 2026-06-19 | M0 — Access Decision (pure) implemented as `src/domain/access/` with `Clearance` enum, `User`/`Document` value types, and `decide(user, document) -> (allowed, reason)`. RBAC Access Outcome Suite placed at `tests/rbac/test_access_decision.py` (31/31 passing). Function is pure: no framework imports, no database calls. Missing authorization inputs fail closed with explicit reason codes. Role-regression test confirms `users.role` does not influence the decision. |
 
 ---
 
@@ -102,6 +110,7 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 | 2026-06-19 | Project name is Sagewell. Intended GitHub repository name is `sagewell`. |
 | 2026-06-19 | V1 implementation sequencing: JWT before LangGraph skeleton. Workflow state typed with `user_id`, `department`, `clearance`, `role`, `correlation_id` from the first test. |
 | 2026-06-19 | Agent-handoff architecture: `AGENTS.md` is the constitution. `NEXT_AGENT.md` carries operational state. `docs/HANDOFF/` carries progress, pending decisions, and known issues. |
+| 2026-06-19 | M0 Access Decision landed as a pure function under `src/domain/access/`, with the RBAC Access Outcome Suite under `tests/rbac/` (31/31 passing). |
 
 ---
 
