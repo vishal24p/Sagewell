@@ -154,6 +154,27 @@ For bugs, see the issue tracker. (Not yet created in this repo.)
   ADR before M14. This is the same ADR family as I-004.
 - **Blocks**: M14.
 
+## I-012 — Docker image tag for dev compose
+
+- **Context**: `docker/compose.dev.yml` originally pinned the
+  ParadeDB image to `paradedb/paradedb:stable`, which does not
+  exist on Docker Hub. The M1 verification `docker compose up -d`
+  step failed with `failed to resolve reference ... : not found`.
+- **Why it must be resolved**: M1 verification's Step A is the
+  entry gate; until compose up succeeds, no later step can run.
+- **Proposed resolution**: dev compose now uses
+  `paradedb/paradedb:pg17` (Postgres 17 baseline; LTS-style; the
+  image ships the `pg_search` extension library). ADR-0002's
+  paragraph has been amended in place to record the corrected
+  tag. The architecture (ParadeDB `pg_search`) and the schema
+  migration's behaviour (`CREATE EXTENSION IF NOT EXISTS pg_search`)
+  are unchanged.
+- **Status**: Resolved 2026-06-19. See
+  `docs/AUDITS/FINDINGS.md` F-21 and the investigation report at
+  `docs/AUDITS/INVESTIGATION_REPORT_M1_IMAGE.md`. Production
+  deployments still pin by digest, decided in their own ADR.
+- **Blocks**: M1 (now unblocked).
+
 ---
 
 ## Update Rule
@@ -170,4 +191,5 @@ with the resolution date and a brief description.
 | Concern | Resolution | Date |
 |---|---|---|
 | I-001 | Partial resolution. M1 ships `audit_logs.reason_code` as TEXT with no DB-level constraint. Only the seven M0 codes (`allowed`, `department_mismatch`, `clearance_insufficient`, `missing_user_department`, `missing_user_clearance`, `missing_document_department`, `missing_document_clearance`) are emitted in M1. Additional codes are introduced in their own milestones. A full V1 enum ADR remains open. | 2026-06-19 |
-| I-004 | Partial resolution. ADR-0002 (`docs/adr/0002-pg-search-paradedb.md`) pins the distribution to ParadeDB `pg_search`. Version pinning is intentionally left to deployment/infrastructure, not the schema. The M1 migration creates the extension with `IF NOT EXISTS`. | 2026-06-19 |
+| I-004 | Partial resolution. ADR-0002 (`docs/adr/0002-pg-search-paradedb.md`) pins the distribution to ParadeDB `pg_search`. Version pinning is intentionally left to deployment/infrastructure, not the schema. The M1 migration creates the extension with `IF NOT EXISTS`. The dev compose image tag is `paradedb/paradedb:pg17`; production pins by digest. | 2026-06-19 |
+| I-012 | Resolved. Dev compose now uses `paradedb/paradedb:pg17`. The previous `paradedb/paradedb:stable` reference was a non-existent tag; the M1 verification `docker compose up -d` step failed against it. ADR-0002 paragraph amended in place; investigation report at `docs/AUDITS/INVESTIGATION_REPORT_M1_IMAGE.md`. | 2026-06-19 |

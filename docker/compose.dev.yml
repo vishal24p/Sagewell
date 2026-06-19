@@ -5,8 +5,11 @@
 # (it ships in the standard PostgreSQL contrib package). See
 # docs/adr/0002-pg-search-paradedb.md.
 #
-# Specific pg_search versions are not pinned at the schema layer.
-# Pin at the deployment/infrastructure layer when needed.
+# The dev compose is pinned to paradedb/paradedb:pg17 (Postgres 17
+# baseline). The image ships pg_search libraries; 001_extensions.up.sql
+# activates the extension with CREATE EXTENSION IF NOT EXISTS.
+# Production deployments pin by digest; the dev tag is overridable
+# per environment.
 #
 # IMPORTANT: credentials below are for local development only.
 # The POSTGRES_PASSWORD is a dev-only value used so a developer
@@ -30,7 +33,7 @@ name: sagewell-dev
 
 services:
   postgres:
-    image: paradedb/paradedb:stable
+    image: paradedb/paradedb:pg17
     environment:
       POSTGRES_DB: sagewell
       POSTGRES_USER: sagewell

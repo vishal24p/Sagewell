@@ -33,8 +33,17 @@ the ParadeDB pg_search contract.
 
 Specific `pg_search` versions are not pinned in V1 schema. Version
 pinning belongs to deployment and infrastructure management, not to
-the schema milestone. The Docker image tag is set to `stable` for
-M1 verification and can be overridden per environment.
+the schema milestone. The Docker image used for M1 verification is
+`paradedb/paradedb:pg17` (Postgres 17 baseline). The image bundles
+the `pg_search` extension library; the schema migration
+`001_extensions.up.sql` activates it with
+`CREATE EXTENSION IF NOT EXISTS pg_search`. Production deployments
+pin the image by digest; the dev image is overridable through the
+compose file.
+
+(Updated 2026-06-19: the previous draft named the tag `stable`,
+which does not exist in the upstream catalog. The dev compose now
+uses `pg17`. See `docs/AUDITS/FINDINGS.md` F-21.)
 
 ## Alternatives Considered
 

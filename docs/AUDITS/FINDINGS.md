@@ -366,12 +366,83 @@ that column. No SQL change required yet.
 
 ---
 
+## F-21 — Compose dev image tag does not exist on Docker Hub
+
+**Tag**: CRITICAL (blocks M1 verification Step A)
+**Location**: `docker/compose.dev.yml`,
+`docs/adr/0002-pg-search-paradedb.md`.
+
+**Finding**: `docker/compose.dev.yml` pinned the dev image to
+`paradedb/paradedb:stable`. M1 verification's Step A executed
+
+```
+docker compose -f docker/compose.dev.yml up -d
+```
+
+and failed with
+
+```
+failed to resolve reference "docker.io/paradedb/paradedb:stable":
+docker.io/paradedb/paradedb:stable: not found
+```
+
+Root cause: the upstream Docker Hub repository `paradedb/paradedb`
+publishes tags by lineage (`latest`, `pg16`, `pg17`, `pg18`) and
+by pinned version (`0.24.0-pg17`, etc.). There is no `stable`
+alias as of the catalog snapshot on 2026-06-19. The image we asked
+for therefore matches the literal "not found" diagnostic returned
+by the Docker daemon. No DNS, registry authentication, or network
+issue is implied.
+
+ADR-0002 had encoded the assumption in writing
+(`The Docker image tag is set to stable for M1 verification`),
+so the mistake is captured in the project's ADR set, not just in
+the compose file.
+
+Implications: every other artefact in the M1 deliverable remains
+correct in isolation. Schema, migrations, indexes, fixtures, and
+the migration runners are unaffected. Only the dev compose image
+reference is broken. M1 verification therefore unblocks with a
+single-line fix.
+
+**Required fix**:
+
+1. `docker/compose.dev.yml`: change `image: paradedb/paradedb:stable`
+   to `image: paradedb/paradedb:pg17` (Postgres 17 baseline;
+   ships the `pg_search` extension library; not pinned at the
+   schema layer).
+2. `docs/adr/0002-pg-search-paradedb.md`: amend the
+   implementation-detail paragraph in place to record the
+   corrected tag. Architecture (ParadeDB `pg_search`) is
+   unchanged.
+3. `MEMORY.md`: add a row recording the chosen `pg17` image
+   tag and the rationale (concrete default for V1 dev; not
+   pinned at the schema layer).
+4. `docs/HANDOFF/KNOWN_ISSUES.md` I-012: add and resolve a row
+   tracing the issue.
+
+**Status**: RESOLVED 2026-06-19. Investigation report at
+`docs/AUDITS/INVESTIGATION_REPORT_M1_IMAGE.md`. The corrected
+compose is the canonical replacement for Step A onwards.
+
+No new ADR is required. AGENTS.md allows documentation edits that
+restate existing decisions; ADR-0002's prose correction is such
+an edit. The architecturally significant choice (ParadeDB
+`pg_search`) is already captured and remains correct.
+
+---
+
 ## Summary
 
-- Critical: 0
+- Critical: 1 (F-21)
 - High: 5 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side])
 - Medium: 6 (F-2, F-7, F-9, F-11, F-17, F-20)
 - Low: 9
+
+The critical finding (F-21) was discovered during developer-side
+verification, not during the original engineering pass. It is
+addressed in a follow-up commit that also updates the audit
+follow-up row.
 
 The high-severity portability and schema-correctness findings
 (F-1, F-3, F-5, F-17) will be fixed in this remediation pass.
