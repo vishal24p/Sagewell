@@ -177,6 +177,31 @@ For bugs, see the issue tracker. (Not yet created in this repo.)
 
 ---
 
+## I-013 — Compose healthcheck shell escaping (F-22)
+
+- **Context**: After the F-21 image tag correction, the dev compose
+  container started but `docker compose ps` reported the postgres
+  service as not healthy. The healthcheck's YAML single-quoted
+  scalar collided with the inner doubled single-quote escape on the
+  embedded SQL string. The container's database and extensions
+  were valid; only the healthcheck predicate was broken.
+- **Why it must be resolved**: a non-healthy compose service
+  interferes with `docker compose down/up` round-trips and blocks
+  M1 verification Step A from reporting green.
+- **Proposed resolution**: reflow the SQL probe through
+  `echo ... | psql -tAX` so the SQL literal lives inside
+  double-quoted shell only. The probe is anchored with
+  `grep -q '^1$'` to avoid false positives.
+- **Status**: Resolved 2026-06-19. See
+  `docs/AUDITS/FINDINGS.md` F-22 and the corrected healthcheck
+  in `docker/compose.dev.yml`.
+- **Blocks**: M1 (now unblocked).
+- **Side note**: this finding fires a header comment in
+  `docker/compose.dev.yml` warning future maintainers not to
+  reintroduce the inline `(''vector'', ''pg_search'')` escape.
+
+---
+
 ## Update Rule
 
 Update this file when a new unresolved engineering concern is
@@ -193,3 +218,4 @@ with the resolution date and a brief description.
 | I-001 | Partial resolution. M1 ships `audit_logs.reason_code` as TEXT with no DB-level constraint. Only the seven M0 codes (`allowed`, `department_mismatch`, `clearance_insufficient`, `missing_user_department`, `missing_user_clearance`, `missing_document_department`, `missing_document_clearance`) are emitted in M1. Additional codes are introduced in their own milestones. A full V1 enum ADR remains open. | 2026-06-19 |
 | I-004 | Partial resolution. ADR-0002 (`docs/adr/0002-pg-search-paradedb.md`) pins the distribution to ParadeDB `pg_search`. Version pinning is intentionally left to deployment/infrastructure, not the schema. The M1 migration creates the extension with `IF NOT EXISTS`. The dev compose image tag is `paradedb/paradedb:pg17`; production pins by digest. | 2026-06-19 |
 | I-012 | Resolved. Dev compose now uses `paradedb/paradedb:pg17`. The previous `paradedb/paradedb:stable` reference was a non-existent tag; the M1 verification `docker compose up -d` step failed against it. ADR-0002 paragraph amended in place; investigation report at `docs/AUDITS/INVESTIGATION_REPORT_M1_IMAGE.md`. | 2026-06-19 |
+| I-013 | Resolved. Compose healthcheck SQL escaping (F-22) was colliding with the outer YAML single-quoted scalar. Reflowed via `echo ... \| psql -tAX \| grep -q '^1$'`. The probe returns green only after `001_extensions.up.sql` activates `pg_search`. | 2026-06-19 |

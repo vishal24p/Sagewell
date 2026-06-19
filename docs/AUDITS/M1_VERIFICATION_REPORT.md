@@ -131,11 +131,28 @@ and the fixture counts must still be present.
 | E | `\di` | 4 indexes | (developer-side) | TBD |
 | F | fixture counts | >=10 users / docs / chunks | (developer-side) | TBD |
 | G | EXPLAIN | uses access filter index (or sequential with justification) | (developer-side) | TBD |
-| H-I | rollback + apply | clean round-trip | (developer-side) | TBD |
-
-## Findings
+| H-I | rollback + apply | clean round-trip | (developer-side) | TBD |## Findings
 
 (developer-side; record any defect here)
+
+### F-21 Plus F-22 (discovered during re-verification of Step A)
+
+After F-21 (`docker.io/paradedb/paradedb:stable: not found`) was
+corrected to `paradedb/paradedb:pg17` (commit `dc21743`), the dev
+container started successfully and the database plus extensions
+were present and valid. The Compose healthcheck, however, failed
+in a non-healthy loop because the YAML single-quoted scalar in
+the healthcheck collided with the inner SQL single-quote escape
+("shell quoting inside Compose quoting"). This was caught by the
+developer-side verification, not by the engineering pass.
+
+F-22 (`docs/AUDITS/FINDINGS.md`) corrected the healthcheck by
+reflowing the SQL probe to `echo ... | psql -tAX | grep -q '^1$'`.
+That change is Compose-yaml-only; no schema, migration, or ADR
+changes were required.
+
+Step A outcome re-evaluates to PASS once the developer records the
+post-F-22 outcome in the results table above.
 
 ## Conclusion
 

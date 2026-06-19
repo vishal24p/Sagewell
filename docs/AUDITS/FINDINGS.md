@@ -432,10 +432,75 @@ an edit. The architecturally significant choice (ParadeDB
 
 ---
 
+## F-22 — Healthcheck shell escaping blocks Step A from reporting healthy
+
+**Tag**: HIGH (blocks compose `pg_search` healthcheck after F-21 fix)
+**Location**: `docker/compose.dev.yml`,
+**Discovered during**: developer-side verification, after F-21 fix
+landed and the dev container started successfully.
+
+**Finding**: After the F-21 image-tag correction in
+`docker/compose.dev.yml`, the dev container started but `docker
+compose ps` reported the postgres service in a non-healthy state.
+The healthcheck's `test:` element was a YAML single-quoted scalar
+evaluated under Docker's `CMD-SHELL`, which joins the second scalar
+with a single space and passes the joined string to
+`/bin/sh -c`. The previous form contained the literal
+
+```
+psql -U sagewell -d sagewell -c 'SELECT extname FROM pg_extension
+WHERE extname IN (''vector'', ''pg_search'');' | grep -q pg_search
+```
+
+When Compose concatenated the `CMD-SHELL` and the test element,
+the inner doubled single-quotes (`''`) collided with the YAML
+single-quoted scalar. The SQL literal that arrived at the inner
+shell was therefore missing its surrounding quotes, and the SQL
+parser collapsed on `vector , pg_search` as bare identifiers,
+producing a parse error. The healthcheck never passed; compose
+repeatedly retried.
+
+The container's database and extensions were valid. Manual
+execution of an unescaped psql against the running container
+returned the expected `pg_search` and `vector` rows.
+
+**Required fix**: reflow the SQL literal under a single quoting
+strategy. The chosen strategy pipes the SQL through `echo ...` to
+`psql -tAX`, so the SQL string lives inside double-quoted shell
+only and the inner single-quotes (`'pg_search'`) are never
+re-interpreted by Compose's outer YAML scalar:
+
+```
+pg_isready -U sagewell -d sagewell &&
+echo "SELECT 1 FROM pg_extension WHERE extname = 'pg_search';" |
+psql -U sagewell -d sagewell -tAX -v ON_ERROR_STOP=1 |
+grep -q '^1$'
+```
+
+The healthcheck still fails until `001_extensions.up.sql` has
+been applied (because the `SELECT` returns zero rows pre-migration);
+it remains green once the extension is present, mirroring the
+intended dev workflow.
+
+`grep -q '^1$'` anchors the match on a single character `1` so
+that tuple output `1` is required, eliminating false positives
+against follow-up extension listings.
+
+**Status**: RESOLVED 2026-06-19. Compose healthcheck now reflects
+"extensions are present" and not "container is up but extensions
+have not been created". The dev compose comment header documents
+the escaping history so future maintainers don't reintroduce the
+inline `'vector', 'pg_search'` form.
+
+No ADR, no schema change, no migration change, no architecture
+change. Compose-yaml-only fix.
+
+---
+
 ## Summary
 
 - Critical: 1 (F-21)
-- High: 5 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side])
+- High: 6 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22)
 - Medium: 6 (F-2, F-7, F-9, F-11, F-17, F-20)
 - Low: 9
 
@@ -443,6 +508,9 @@ The critical finding (F-21) was discovered during developer-side
 verification, not during the original engineering pass. It is
 addressed in a follow-up commit that also updates the audit
 follow-up row.
+
+F-22 was discovered during the F-21 re-verification pass. The fix
+is a single-file change to the compose healthcheck quoting.
 
 The high-severity portability and schema-correctness findings
 (F-1, F-3, F-5, F-17) will be fixed in this remediation pass.

@@ -40,6 +40,7 @@ Sagewell V1. Architecture decision records live in `docs/adr/`.
 | 2026-06-19 | M1 schema fixes: `users.external_subject` and `users.email` are UNIQUE; `chunks.embedding` is `vector(1536)`; `users.updated_at` and `documents.updated_at` are kept current by BEFORE UPDATE triggers via `sagewell_touch_updated_at`. | `migrations/002_schema.up.sql`, `docs/adr/0004-embedding-dimension-1536.md` |
 | 2026-06-19 | Migration runners are portable. Apply sets `:fixtures_dir` via `psql -v`; rollback requires the explicit `SAGEWELL_ROLLBACK_CONFIRM=I_UNDERSTAND`. | `infrastructure/migrations/`, `docs/AUDITS/FINDINGS.md` |
 | 2026-06-19 | Dev compose uses `paradedb/paradedb:pg17`. The `pg_search` extension library ships inside the image; the schema migration activates it via `CREATE EXTENSION IF NOT EXISTS pg_search`. Overridable per environment but not pinned at the schema layer. Production deployments pin by digest. ADR-0002 paragraph updated to reflect the corrected tag. Closes M1 verification failure F-21. | `docker/compose.dev.yml`, `docs/adr/0002-pg-search-paradedb.md`, `docs/AUDITS/FINDINGS.md` |
+| 2026-06-19 | Dev compose healthcheck probes `pg_search` via `echo ... \| psql -tAX \| grep -q '^1$'`. Avoids YAML/shell single-quote escaping collisions that broke the previous inline `-c '... WHERE extname IN (''vector'', ''pg_search'');'` form. Closes M1 verification failure F-22. | `docker/compose.dev.yml`, `docs/AUDITS/FINDINGS.md` |
 
 ## Assumptions
 

@@ -28,6 +28,14 @@
 # pg_search extension to be visible. Migrations are applied
 # separately by infrastructure/migrations/apply.sh so that the
 # compose file is not coupled to migration order.
+#
+# Healthcheck shell escaping note: the previous form inlined a
+# -c SQL command with single-quoted escapes ('vector', 'pg_search')
+# that collided with the surrounding YAML single-quoted scalar
+# after Compose joined CMD-SHELL. The current form reflows the
+# probe through `echo ... | psql -tAX` so the SQL literal lives
+# inside double-quoted shell only and never sees inner
+# single-quote escapes. See docs/AUDITS/FINDINGS.md F-22.
 
 name: sagewell-dev
 
@@ -45,7 +53,11 @@ services:
     healthcheck:
       test:
         - "CMD-SHELL"
-        - "pg_isready -U sagewell -d sagewell && psql -U sagewell -d sagewell -c 'SELECT extname FROM pg_extension WHERE extname IN (''vector'', ''pg_search'');' | grep -q pg_search"
+        - >-
+          pg_isready -U sagewell -d sagewell &&
+          echo "SELECT 1 FROM pg_extension WHERE extname = 'pg_search';" |
+          psql -U sagewell -d sagewell -tAX -v ON_ERROR_STOP=1 |
+          grep -q '^1$'
       interval: 5s
       timeout: 5s
       retries: 30
