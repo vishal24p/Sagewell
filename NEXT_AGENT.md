@@ -12,58 +12,55 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M0 — Access Decision (pure).**
-
-No source code exists yet. The first implementation task is to build
-the access decision as a pure function and prove it correct.
+**M1 — Schema, Migrations, Fixtures, Indexes.**
 
 ---
 
 ## Current Status
 
-**Not Started.**
-
-The repository contains only documentation. No source files. No
-tests. No migrations. No API. No workflow.
+**In progress.** M0 closed on 2026-06-19 (commit `a78e21c`).
+The RBAC Access Outcome Suite passes 31/31 inside the project
+`.venv`. The M0 handoff record is in `docs/HANDOFF/CURRENT_STATE.md`.
 
 ---
 
 ## Next Task
 
-Build the access decision function and the RBAC Access Outcome
-Suite.
-
-The access decision is the only piece of business logic that must
-be correct for the system to be safe. It is a pure function with no
-IO, no framework imports, no database. It must be validated
-independently of every other component.
+Lock the V1 data contract: six tables, the `pgvector` and
+`pg_search` extensions, the four V1 indexes enumerated in
+`DATABASE_SCHEMA.md`, reversible migrations, and a fixture
+strategy that supports M2 repositories and the release gate.
 
 ### Task definition
 
-1. Implement the access decision as a pure function with the
-   signature `access(user, document) -> (allowed, reason)`.
-2. Implement the RBAC Access Outcome Suite (Allow, Deny,
-   Department, Clearance) and run it against the pure function.
-3. Confirm 100% of RBAC suite cases pass before moving on.
-4. Record the result in `docs/HANDOFF/CURRENT_STATE.md` under
-   "Recently Completed."
+1. Provision the V1 database contract: extensions, schemas,
+   tables, columns, constraints, foreign keys, indexes.
+2. Provide reversible migrations for every change. Migrations
+   must pass `apply then rollback` from a clean database.
+3. Provide loadable fixtures that downstream milestones can use
+   to exercise repositories without drafting data of their own.
+4. Provide a verification path for the indexes named in
+   `DATABASE_SCHEMA.md` (including EXPLAIN-style acceptance).
 
-### How to test
+### How to test (when a database is wired)
 
-- Table-driven unit tests covering every cell of the truth table
-  for `(user.department, user.clearance)` × `(document.department,
-  document.required_clearance)`.
-- Edge cases: `ALL` department as wildcard, equal clearance,
-  missing fields (must deny), `users.role` excluded from the
-  decision.
-- RBAC suite asserts allow, deny, department boundary, clearance
-  boundary.
+- Migrations apply cleanly on a clean Postgres database.
+- Migrations roll back to the pre-migration state.
+- The `chunks` HNSW index is present after migrations.
+- The `documents_access_filter_idx` is present after migrations
+  and is used by an EXPLAIN check.
+- Fixtures load via a documented command and the load is repeatable.
 
 ### How to verify before moving on
 
-- All RBAC suite cases pass.
-- The pure function has zero framework imports.
-- The pure function has zero database calls.
+- Schema contract matches `DATABASE_SCHEMA.md` exactly.
+- Migration tool is named and recorded in `MEMORY.md`.
+- `pg_search` version pinned in `MEMORY.md`.
+- `reason_code` enum is enumerated and recorded in `MEMORY.md`.
+- Fixture strategy recorded in `MEMORY.md`.
+- Index strategy recorded in `MEMORY.md`.
+- All M1 prerequisites catalogued above are resolved (or
+  recorded as new D-IDs in `DECISIONS_PENDING.md`).
 
 ---
 
@@ -71,74 +68,64 @@ independently of every other component.
 
 Read these before starting:
 
-- `POLICIES.md` — the access rule formula and clearance hierarchy.
-- `ARCHITECTURE.md` — Authorization Architecture, the access
-  decision function shape, the three boundaries.
-- `skills/project/rbac/SKILL.md` — the V1 authorization rule and
-  checklist.
-- `docs/adr/0001-single-tenant-enterprise-rag-baseline.md` — the
-  architecture decision.
+- `DATABASE_SCHEMA.md` — the V1 table list and index plan.
+- `PROJECT_STATUS.md` — M1 milestone description and exit criteria.
+- `POLICIES.md` — least-privilege account rule.
+- `WORKFLOWS.md` — ingestion flow, audit logging, and citation
+  verification that the schema must support.
+- `skills/project/database_design/SKILL.md` — V1 schema, migrations,
+  indexes.
+- `docs/adr/` — accepted ADRs and ADR template; M1 may require
+  new ADRs.
 
-Do not read the four retrieval skill files, the database design
-skill, the debugging skill, or the evaluation skill yet. They are
-for later milestones.
+Do not yet read retrieval, ingestion, debugging, evaluation, or
+external API skills. They are for later milestones.
 
 ---
 
 ## Do Not Touch
 
-The following are out of scope for this milestone. Do not start
-them, do not scaffold them, do not write code for them:
+The items in M0's "Do Not Touch" apply. Additions for M1:
 
-- M1 Schema and migrations. Wait for M0 to exit.
 - M2 Repositories. Wait for M1.
 - M3 API Skeleton. Wait for M2.
 - M4 Audit Infrastructure. Wait for M3.
-- M5 JWT Validation. Wait for M4.
-- M6 LangGraph Skeleton. Wait for M5.
-- M7 Ingestion. Wait for M6.
-- M8 Retrieval. Wait for M7.
-- M9 Workflow Wiring. Wait for M8.
-- M10 Regex Guard. Wait for M9.
-- M11 LLM Guard. Wait for M9.
-- M12 Audit and Retrieval Logs (complete). Wait for M11.
-- M13 RAGAS Evaluation. Wait for M12.
-- M14 End-to-end Hardening. Wait for M13.
-- Out-of-V1 concepts: ACL engine, groups, OIDC, Okta, Entra,
-  LDAP, identity federation, external IAM, permission resolution
-  engines, multi-tenant isolation.
+- Application-layer code.
+- LangGraph.
+- LlamaIndex.
 
 ---
 
 ## Exit Criteria
 
-M0 is complete when all of the following are true:
+M1 is complete when all of the following are true:
 
-- The access decision is implemented as a pure function with the
-  approved signature.
-- The RBAC Access Outcome Suite passes 100% against the pure
-  function.
-- The pure function has zero framework imports.
-- The pure function has zero database calls.
-- The result is recorded in `docs/HANDOFF/CURRENT_STATE.md`.
+- The V1 schema is recorded in migration files and the local
+  Postgres database reflects it.
+- All migrations roll back to a clean state, then re-apply.
+- All four indexes named in `DATABASE_SCHEMA.md` exist after
+  apply.
+- Fixture load is documented and reproducible.
+- All M1 prerequisites noted in the verification section of
+  `docs/HANDOFF/CURRENT_STATE.md` have resolutions recorded in
+  this file or in `DECISIONS_PENDING.md`.
 
-When these are true, advance to M1. Update
-`docs/HANDOFF/CURRENT_STATE.md` to mark M0 as complete and M1 as
-in progress. Update the "Next Task" section of this file.
+Advance to M2 by updating `NEXT_AGENT.md`, `CURRENT_STATE.md`,
+and appending a row to `MEMORY.md`.
 
 ---
 
 ## Known Open Questions
 
-These are tracked in `MEMORY.md` and `docs/HANDOFF/KNOWN_ISSUES.md`:
+The M0 list still applies. In addition, M1 introduces:
 
-- Which JWT signing algorithm and key management approach?
-- Which Embedding Model, Reranker Model, Guardrail Model, and
-  Generation Model capabilities will be adopted?
-- Which `pg_search` distribution and version?
-- What are the RAGAS score thresholds and the RBAC Access Outcome
-  thresholds for the release gate?
-- What retention policy applies to `audit_logs`, `retrieval_logs`,
-  and `evaluation_results`?
+- Which migration tool (raw SQL, Alembic, sqlx, dbmate, ...).
+- Which Postgres version and which `pg_search` distribution
+  (ParadeDB / older forms).
+- Whether to use a Postgres ENUM type for `reason_code` or a
+  text column with a CHECK constraint.
+- Fixture layout: where, format, and how loaded.
+- Whether the M1 dev DB is shared or each milestone resets it.
 
-These do not block M0. They block later milestones.
+These block M1 implementation. They are not yet D-IDs in
+`DECISIONS_PENDING.md`.

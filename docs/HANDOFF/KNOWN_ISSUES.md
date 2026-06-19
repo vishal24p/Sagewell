@@ -167,4 +167,7 @@ with the resolution date and a brief description.
 
 ## Recently Resolved
 
-(none yet)
+| Concern | Resolution | Date |
+|---|---|---|
+| I-001 | Partial resolution. M1 ships `audit_logs.reason_code` as TEXT with no DB-level constraint. Only the seven M0 codes (`allowed`, `department_mismatch`, `clearance_insufficient`, `missing_user_department`, `missing_user_clearance`, `missing_document_department`, `missing_document_clearance`) are emitted in M1. Additional codes are introduced in their own milestones. A full V1 enum ADR remains open. | 2026-06-19 |
+| I-004 | Partial resolution. ADR-0002 (`docs/adr/0002-pg-search-paradedb.md`) pins the distribution to ParadeDB `pg_search`. Version pinning is intentionally left to deployment/infrastructure, not the schema. The M1 migration creates the extension with `IF NOT EXISTS`. | 2026-06-19 |

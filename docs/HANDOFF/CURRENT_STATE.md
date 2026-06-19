@@ -38,7 +38,13 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M1 — Schema, Migrations, Fixtures, Indexes.**
+**M1 — Schema, Migrations, Fixtures, Indexes (unverified).**
+
+Authoring complete. Verification commands documented in
+`infrastructure/migrations/README.md` must be run by a
+developer or in CI; the local sandbox cannot reach a Postgres.
+M1 will not be marked verified until those commands succeed
+end-to-end.
 
 Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 
@@ -51,6 +57,15 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 | M0 | Access Decision (pure) and RBAC Access Outcome Suite. | 2026-06-19 |
 
 ### Completed In Documentation
+
+| Item | Date |
+|---|---|
+| V1 architecture approved (`docs/adr/0001-...`) | 2026-06-19 |
+| Documentation audit and corrections (`docs/AUDIT_REPORT.md`) | 2026-06-19 |
+| Architecture verification pass (`docs/VERIFICATION_REPORT.md`) | 2026-06-19 |
+| Implementation roadmap published (`PROJECT_STATUS.md` M0-M14) | 2026-06-19 |
+| Roadmap refinement: JWT before LangGraph skeleton | 2026-06-19 |
+| Agent-handoff refactor: `AGENTS.md` reduced to constitution, `NEXT_AGENT.md` and `docs/HANDOFF/` created | 2026-06-19 |
 
 | Item | Date |
 |---|---|
@@ -76,6 +91,7 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 | Date | Item |
 |---|---|
 | 2026-06-19 | M0 — Access Decision (pure) implemented as `src/domain/access/` with `Clearance` enum, `User`/`Document` value types, and `decide(user, document) -> (allowed, reason)`. RBAC Access Outcome Suite placed at `tests/rbac/test_access_decision.py` (31/31 passing). Function is pure: no framework imports, no database calls. Missing authorization inputs fail closed with explicit reason codes. Role-regression test confirms `users.role` does not influence the decision. |
+| 2026-06-19 | M1 — Schema, Migrations, Fixtures, Indexes authored (unverified from the sandbox). Docker compose at `docker/compose.dev.yml` brings up Postgres + ParadeDB `pg_search`. Migrations `001_extensions`, `002_schema`, `003_indexes`, `004_fixtures` are reversible SQL pairs under `migrations/`. Fixtures are SQL under `db/fixtures/` and use a `fixture-` prefix and `source_system='fixture'` so rollback does not touch real data. Apply and rollback run via `infrastructure/migrations/{apply,rollback}.sh`. ADRs `0002-pg-search-paradedb.md` and `0003-raw-sql-migrations.md` capture the M1 decisions. Verification requires a Postgres reachable from a developer environment; the sandbox does not run Docker. |
 
 ---
 
@@ -83,7 +99,6 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 
 | Milestone | Description |
 |---|---|
-| M1 | Schema, Migrations, Fixtures, Indexes. |
 | M2 | Repositories. |
 | M3 | API Skeleton. |
 | M4 | Audit Infrastructure. |
@@ -111,22 +126,32 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 | 2026-06-19 | V1 implementation sequencing: JWT before LangGraph skeleton. Workflow state typed with `user_id`, `department`, `clearance`, `role`, `correlation_id` from the first test. |
 | 2026-06-19 | Agent-handoff architecture: `AGENTS.md` is the constitution. `NEXT_AGENT.md` carries operational state. `docs/HANDOFF/` carries progress, pending decisions, and known issues. |
 | 2026-06-19 | M0 Access Decision landed as a pure function under `src/domain/access/`, with the RBAC Access Outcome Suite under `tests/rbac/` (31/31 passing). |
+| 2026-06-19 | V1 lexical search uses ParadeDB `pg_search`. Schema migration creates the extension; version pinning is deferred to deployment. |
+| 2026-06-19 | Migrations are raw numbered SQL pairs. Run tooling is `infrastructure/migrations/{apply,rollback}.sh`. No Alembic, SQLAlchemy, `dbmate`, `yoyo-migrations`, or `sqitch`. |
+| 2026-06-19 | M1 FK behavior is RESTRICT on every cross-table reference. Soft-delete goes through the `status` column. |
+| 2026-06-19 | `audit_logs.reason_code` is TEXT with no DB-level constraint; only the M0 imm codes are emitted in M1. |
 
 ---
 
 ## Known Risks
 
-- No source implementation exists yet. There is no executed access
-  decision to compare against the policy. Until M0 lands, the
-  architecture is provable on paper only.
 - Model capabilities (Embedding, Reranker, Guardrail, Generation)
-  are not pinned. They remain capability-based until separate ADRs
-  are written.
-- `pg_search` extension name and version are not pinned.
-- `skills/external/accessibility/SKILL.md` is not present; UI
-  accessibility work must report that missing local route before
-  falling back to outside installed guidance.
+  remain capability-based until separate ADRs are written.
 - RAGAS and RBAC release-gate thresholds are not pinned.
+- `uv.lock` from the M0 verification pass is untracked; its
+  disposition is deferred until repository hygiene is revisited
+  after M1 foundations are established.
+- `skills/external/skill-creator/` is parked on disk for future
+  capability building; not routed through `SKILLS.md` and not
+  required by M1.
+- A skeleton commit `1e6f28f` titled `Step 2 backend skeleton`
+  sits in the reflog but is not reachable from `main`; ignored
+  for M1.
+- M1 verification (`docker compose up`, EXPLAIN, fixture load)
+  must be run by a developer or in CI; the sandbox here cannot
+  reach a Postgres. M1 is not claimed verified until the
+  verification commands listed in
+  `infrastructure/migrations/README.md` succeed end-to-end.
 
 ---
 

@@ -1,0 +1,53 @@
+# Local development database for Sagewell V1.
+#
+# Image provides PostgreSQL plus the ParadeDB pg_search extension.
+# pgvector is created from the project's migration on first apply
+# (it ships in the standard PostgreSQL contrib package). See
+# docs/adr/0002-pg-search-paradedb.md.
+#
+# Specific pg_search versions are not pinned at the schema layer.
+# Pin at the deployment/infrastructure layer when needed.
+#
+# IMPORTANT: credentials below are for local development only.
+# The POSTGRES_PASSWORD is a dev-only value used so a developer
+# can `docker compose up` without a secret store. Production
+# deployments must source credentials from a secret manager; the
+# migration tooling itself accepts credentials via the
+# SAGEWELL_DB_URL environment variable and does not read this
+# compose file. See infrastructure/migrations/README.md.
+#
+# Bring up:    docker compose -f docker/compose.dev.yml up -d
+# Logs:        docker compose -f docker/compose.dev.yml logs -f postgres
+# Stop:        docker compose -f docker/compose.dev.yml down
+# Reset:       docker compose -f docker/compose.dev.yml down -v
+#
+# Healthcheck waits for the Postgres TCP socket and for the
+# pg_search extension to be visible. Migrations are applied
+# separately by infrastructure/migrations/apply.sh so that the
+# compose file is not coupled to migration order.
+
+name: sagewell-dev
+
+services:
+  postgres:
+    image: paradedb/paradedb:stable
+    environment:
+      POSTGRES_DB: sagewell
+      POSTGRES_USER: sagewell
+      POSTGRES_PASSWORD: sagewell_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - sagewell_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -U sagewell -d sagewell && psql -U sagewell -d sagewell -c 'SELECT extname FROM pg_extension WHERE extname IN (''vector'', ''pg_search'');' | grep -q pg_search"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  sagewell_dev_data:
+    name: sagewell_dev_data
