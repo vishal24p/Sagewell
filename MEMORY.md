@@ -37,6 +37,8 @@ Sagewell V1. Architecture decision records live in `docs/adr/`.
 | 2026-06-19 | M1 fixtures carry an `external_subject` prefix of `fixture-` on `users` and `source_system='fixture'` on `documents`/`chunks`. The fixture sheet never adds columns to the canonical schema in `DATABASE_SCHEMA.md`; the prefix is the rollback boundary. | `db/fixtures/` |
 | 2026-06-19 | M1 FK behavior is RESTRICT on every cross-table reference (`chunks.document_id`, `audit_logs.actor_user_id`, `retrieval_logs.actor_user_id`). Application soft-delete via the `status` column is the cancel path. | `migrations/002_schema.up.sql` |
 | 2026-06-19 | `audit_logs.reason_code` is stored as TEXT with no DB-level constraint; application code is responsible for emitting only the M0-imm reason codes (`allowed`, `department_mismatch`, `clearance_insufficient`, `missing_user_department`, `missing_user_clearance`, `missing_document_department`, `missing_document_clearance`). Additional reason codes are added in their own milestones. | `migrations/002_schema.up.sql` |
+| 2026-06-19 | M1 schema fixes: `users.external_subject` and `users.email` are UNIQUE; `chunks.embedding` is `vector(1536)`; `users.updated_at` and `documents.updated_at` are kept current by BEFORE UPDATE triggers via `sagewell_touch_updated_at`. | `migrations/002_schema.up.sql`, `docs/adr/0004-embedding-dimension-1536.md` |
+| 2026-06-19 | Migration runners are portable. Apply sets `:fixtures_dir` via `psql -v`; rollback requires the explicit `SAGEWELL_ROLLBACK_CONFIRM=I_UNDERSTAND`. | `infrastructure/migrations/`, `docs/AUDITS/FINDINGS.md` |
 
 ## Assumptions
 

@@ -18,9 +18,19 @@ Documents" before doing anything.
 
 ## Current Status
 
-**In progress.** M0 closed on 2026-06-19 (commit `a78e21c`).
-The RBAC Access Outcome Suite passes 31/31 inside the project
-`.venv`. The M0 handoff record is in `docs/HANDOFF/CURRENT_STATE.md`.
+**Remediated, PENDING LOCAL EXECUTION.**
+
+M0 closed on 2026-06-19 (commit `a78e21c`). M1 authoring closed
+on 2026-06-19 (commit `38a1efa`) and remediated on 2026-06-19 with
+the engineering fixes recorded at `docs/AUDITS/FINDINGS.md` and
+the re-audit at `docs/AUDITS/M1_REMEDIATION_REPORT.md`. The
+verification report at `docs/AUDITS/M1_VERIFICATION_REPORT.md`
+is at status `PENDING LOCAL EXECUTION`.
+
+A developer must run the verification commands documented in
+`infrastructure/migrations/README.md` (steps A-I) and update the
+verification report to `PASSED` before M1 is marked `Verified
+Ready` and M2 begins.
 
 ---
 

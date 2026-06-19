@@ -26,52 +26,49 @@ to report `pg_search` is present.
 
 ## Apply
 
-Set `SAGEWELL_DB_URL` to your local connection string (the
-dev defaults in `docker/compose.dev.yml` are documented inline;
-production deployments must source the URL from a secret
-manager), then run:
+Set `SAGEWELL_DB_URL` to your local connection URL. The runner
+uses the canonical migrations tree. Run:
 
 ```bash
 ./infrastructure/migrations/apply.sh
 ```
+
+The apply script sets the SQL variable `:fixtures_dir` to the
+absolute path of `db/fixtures/` so the fixture migration's `\i`
+references resolve at runtime (portable across developer machines;
+see `docs/AUDITS/FINDINGS.md` F-5).
 
 ## Rollback
 
-Rollback runs the down files in reverse numeric order, one per
-transaction. Use only if you intend to take the database back
-to the pre-migration state.
+Rollback is **destructive**. It walks down files in reverse
+numeric order, one per transaction. Use only on a dev DB you
+are willing to wipe.
 
 ```bash
+export SAGEWELL_ROLLBACK_CONFIRM=I_UNDERSTAND
 ./infrastructure/migrations/rollback.sh
 ```
+
+The runner refuses to proceed without the explicit confirmation
+env var. See `docs/AUDITS/FINDINGS.md` F-7.
 
 ## Verification (developer side)
 
-After a clean apply, the following confirm the schema is correct.
-
-```bash
-psql "$SAGEWELL_DB_URL" -c '\dt'
-psql "$SAGEWELL_DB_URL" -c '\di'
-psql "$SAGEWELL_DB_URL" -c "SELECT extname FROM pg_extension WHERE extname IN ('vector', 'pg_search');"
-psql "$SAGEWELL_DB_URL" -c "SELECT count(*) FROM users;"
-psql "$SAGEWELL_DB_URL" -c "SELECT count(*) FROM documents;"
-psql "$SAGEWELL_DB_URL" -c "SELECT count(*) FROM chunks;"
-
-# EXPLAIN check for documents_access_filter_idx:
-psql "$SAGEWELL_DB_URL" -c "EXPLAIN SELECT * FROM documents WHERE department='finance' AND required_clearance='INTERNAL' AND status='active';"
-```
-
-Then rollback and re-apply to confirm reversibility:
-
-```bash
-./infrastructure/migrations/rollback.sh
-./infrastructure/migrations/apply.sh
-```
+The full developer-side verification procedure is in
+`docs/AUDITS/M1_VERIFICATION_REPORT.md`. The procedure covers
+compose up, apply, table and extension list, index list,
+fixture counts, EXPLAIN check, rollback, and re-apply.
 
 ## Sandbox Note
 
-These verification steps require a Postgres reachable from the
-running environment. Authoring the files does not run any of
-them; verification is a developer-side step. M1 will not be
-claimed verified in the handoff until these commands have run
-end-to-end.
+Authoring the files does not run any of the verification commands;
+verification is a developer-side step. **M1 must not be marked
+Closed** in `docs/HANDOFF/CURRENT_STATE.md` until the verification
+report shows status `PASSED`.
+
+Other required reading before marking M1 verified:
+
+- `docs/AUDITS/FINDINGS.md` — engineering findings.
+- `docs/AUDITS/M1_REMEDIATION_REPORT.md` — re-audit after fixes.
+- `docs/AUDITS/MIGRATION_CHECKLIST.md` — gate checks the reviewer
+  applied during the engineering pass.

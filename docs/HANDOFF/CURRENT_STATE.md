@@ -38,13 +38,17 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M1 — Schema, Migrations, Fixtures, Indexes (unverified).**
+**M1 — Schema, Migrations, Fixtures, Indexes.**
 
-Authoring complete. Verification commands documented in
-`infrastructure/migrations/README.md` must be run by a
-developer or in CI; the local sandbox cannot reach a Postgres.
-M1 will not be marked verified until those commands succeed
-end-to-end.
+Authoring complete. Engineering remediation applied per the
+review at `docs/AUDITS/FINDINGS.md` and `docs/AUDITS/M1_REMEDIATION_REPORT.md`.
+Audit documentation in `docs/AUDITS/`. Verification package
+in `infrastructure/migrations/`.
+
+M1 status: `Implemented`. M1 will move to `Verified Ready` after
+the verification commands complete and
+`docs/AUDITS/M1_VERIFICATION_REPORT.md` shows status `PASSED`.
+M1 will move to `Closed` after that report is recorded.
 
 Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 
@@ -130,6 +134,11 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 | 2026-06-19 | Migrations are raw numbered SQL pairs. Run tooling is `infrastructure/migrations/{apply,rollback}.sh`. No Alembic, SQLAlchemy, `dbmate`, `yoyo-migrations`, or `sqitch`. |
 | 2026-06-19 | M1 FK behavior is RESTRICT on every cross-table reference. Soft-delete goes through the `status` column. |
 | 2026-06-19 | `audit_logs.reason_code` is TEXT with no DB-level constraint; only the M0 imm codes are emitted in M1. |
+| 2026-06-19 | `chunks.embedding` is fixed at `vector(1536)`. The dimension is a column-level constraint; any change requires ADR-0004-style review. |
+| 2026-06-19 | `users.external_subject` and `users.email` are UNIQUE. The former is the JWT look-up key for M5. |
+| 2026-06-19 | `users.updated_at` and `documents.updated_at` are kept current by `BEFORE UPDATE` triggers via the `sagewell_touch_updated_at` function. |
+| 2026-06-19 | Migration runner is portable. `apply.sh` passes `:fixtures_dir` to `psql -v`; `rollback.sh` refuses to run without `SAGEWELL_ROLLBACK_CONFIRM=I_UNDERSTAND`. |
+| 2026-06-19 | Engineering findings recorded in `docs/AUDITS/FINDINGS.md`; remediation report at `docs/AUDITS/M1_REMEDIATION_REPORT.md`; verification package at `docs/AUDITS/M1_VERIFICATION_REPORT.md` (status PENDING LOCAL EXECUTION). |
 
 ---
 

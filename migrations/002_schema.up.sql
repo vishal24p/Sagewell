@@ -13,8 +13,18 @@
 --     it does not participate in authorization.
 --   * `documents.department` may be 'ALL' for company-wide docs.
 --     The check is application-enforced.
---   * `chunks.embedding` is `vector`; per-row dimensions are
---     pinned in capability-based model decisions (D-002).
+--   * `chunks.embedding` is `vector(1536)` per the Embedding
+--     Model capability decision recorded in docs/adr/0004-
+--     embedding-dimension.md. The dimension is a column-level
+--     constraint; ALTER will be required if the capability
+--     changes (and that change must be ADR-driven).
+--   * `users.external_subject` and `users.email` are UNIQUE.
+--     external_subject is the JWT look-up key in M5; uniqueness
+--     is non-negotiable for identity correctness.
+--   * `users.updated_at` and `documents.updated_at` are kept
+--     current by BEFORE UPDATE triggers (see the end of this
+--     file). Application code may still write updated_at for
+--     explicit corrections.
 --
 -- See DATABASE_SCHEMA.md for the canonical narrative and
 -- docs/adr/0001-... for the architectural baseline.
@@ -30,7 +40,9 @@ CREATE TABLE IF NOT EXISTS users (
     clearance        TEXT NOT NULL,
     role             TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT users_external_subject_unique UNIQUE (external_subject),
+    CONSTRAINT users_email_unique UNIQUE (email)
 );
 
 -- documents
@@ -56,7 +68,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     ordinal      INTEGER NOT NULL,
     text         TEXT NOT NULL,
     text_search  TEXT,
-    embedding    vector,
+    embedding    vector(1536),
     metadata     JSONB NOT NULL DEFAULT '{}'::jsonb,
     token_count  INTEGER,
     status       TEXT NOT NULL,
@@ -102,3 +114,28 @@ CREATE TABLE IF NOT EXISTS evaluation_results (
     model_config    JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- updated_at maintenance. PostgreSQL supports per-row trigger
+-- functions. We keep the function narrowly scoped so it does
+-- nothing except touch updated_at. The trigger is created once
+-- per table; the function is shared.
+CREATE OR REPLACE FUNCTION sagewell_touch_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at := now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS users_touch_updated_at ON users;
+CREATE TRIGGER users_touch_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION sagewell_touch_updated_at();
+
+DROP TRIGGER IF EXISTS documents_touch_updated_at ON documents;
+CREATE TRIGGER documents_touch_updated_at
+    BEFORE UPDATE ON documents
+    FOR EACH ROW
+    EXECUTE FUNCTION sagewell_touch_updated_at();
+
