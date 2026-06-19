@@ -1,5 +1,7 @@
 # RBAC Learnings
 
-- Single tenant still requires strict user-level access control.
-- Authorization uncertainty must fail closed.
-- RBAC regressions block release even if answer quality improves.
+- V1 authorization is department + clearance. Nothing else.
+- The access decision is one pure function, called at three
+  boundaries.
+- `users.role` is for UI and auditing, not authorization.
+- Deny tests assert access-decision outcomes, not answer strings.

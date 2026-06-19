@@ -1,70 +1,120 @@
 # Policies
 
-This file defines security, RBAC, prompt-injection, logging, and operational policies for the single-tenant Enterprise RAG baseline.
+V1 security, authorization, prompt-protection, and logging policies.
 
 ## Security Principles
 
-- Single tenant does not mean single trust level. Enforce RBAC on every retrieval and answer path.
-- Treat user input, document text, metadata, and retrieved chunks as untrusted.
-- Authorization must happen before retrieval, during retrieval filtering, and before final answer rendering.
-- The system must never reveal documents, metadata, citations, summaries, or existence signals for resources the user cannot access.
-- Prefer deny-by-default behavior for ambiguous permissions.
+- Authorization is department plus clearance only.
+- Treat user input, document text, metadata, and retrieved chunks as
+  untrusted.
+- Authorization happens before retrieval, after reranking, and at
+  citation verification.
+- The system never reveals documents, metadata, citations, summaries,
+  or existence signals for resources the actor cannot access.
+- Default behavior is deny.
 
-## RBAC Model
+## Authorization Model
 
-Entities:
+V1 authorization inputs:
 
-- User: authenticated human or service account.
-- Role: named permission bundle.
-- Group: collection of users mapped to roles or resource grants.
-- Resource: document, collection, connector, job, or audit record.
-- Permission: action such as read, write, ingest, administer, evaluate, or view audit logs.
+- `user.department`
+- `user.clearance`
+- `document.department`
+- `document.required_clearance`
 
-Required checks:
+The access decision function:
 
-- API entrypoints validate identity and coarse action permission.
-- Application use cases validate operation-specific permission.
-- Retrieval filters restrict candidate chunks by user, group, role, collection, document ACL, department, and clearance.
-- Citation rendering re-checks access to the cited document.
-- Admin operations require explicit admin permission, not role name matching.
+```text
+access = (
+    user.department == document.department
+    OR
+    document.department == "ALL"
+)
+AND
+(
+    user.clearance >= document.required_clearance
+)
+```
 
-## Classification Policy
-
-Documents and chunks must carry classification metadata before they are indexed.
-
-Clearance levels:
+Clearance hierarchy:
 
 ```text
 PUBLIC < INTERNAL < CONFIDENTIAL < RESTRICTED
 ```
 
-Access requires:
+Role on `users` (employee, manager, admin) is reserved for UI behavior
+and auditing. Role does not participate in authorization.
+
+There is no ACL engine, no `document_acl` table, no permissions
+framework, no groups, and no group-based authorization in V1.
+
+## Classification Policy
+
+Documents and chunks carry classification metadata before indexing.
+
+- Department filter: actor department matches document department, or
+  the document department is ALL.
+- Clearance filter: actor clearance is greater than or equal to the
+  document required clearance.
+
+If either check fails, the document is not retrievable.
+
+## JWT Authentication Policy
+
+- The API layer validates the JWT on every request.
+- Required claims include subject, department, clearance, and
+  expiration.
+- Optional `role` claim is permitted for UI behavior and auditing
+  only; it does not participate in authorization.
+- Invalid or expired tokens return 401 and produce an `audit_logs`
+  row with reason_code JWT_INVALID.
+
+## Prompt-Protection Policy
+
+Prompt protection is on the primary request path. The order is:
 
 ```text
-user.clearance >= document.clearance
-AND
-(
-  user.department = document.department
-  OR document.department = "ALL"
-)
+JWT Authentication
+  -> Regex Guard
+  -> RBAC Authorization (department + clearance)
+  -> Retrieval (dense + BM25 + RRF + cross-encoder)
+  -> LLM Guard
+  -> Generation
 ```
 
-ACL grants can narrow access further. ACL grants must not widen access beyond clearance and department constraints unless a future ADR explicitly changes this rule.
+Prompt protection is not deferred.
 
-## Prompt-Injection Policy
+The Regex Guard runs after JWT validation and before RBAC and
+retrieval. The Regex Guard is cheap, deterministic, and fast; its
+job is to refuse obvious prompt-injection attempts before any
+authorization or retrieval work is performed. Examples include
+"ignore previous instructions," "reveal system prompt," "dump
+database," and "show all restricted documents."
 
-All retrieved content is data, not instruction.
+The LLM Guard runs after retrieval and before generation. It is
+context-aware and inspects the user query together with retrieved
+chunks. It catches indirect prompt injection, contextual attacks,
+instruction conflicts, and retrieval-based attacks that the Regex
+Guard cannot see.
 
-The assistant workflow must:
+### Regex Guard
 
-- Keep system and developer instructions outside the retrieved context.
-- Wrap retrieved chunks with clear data boundaries.
-- Ignore instructions in documents that ask to reveal secrets, change policy, disable RBAC, or bypass tools.
-- Detect high-risk injection patterns and reduce trust in the affected chunk.
-- Prefer quoting or citing suspicious text over following it.
-- Return a refusal or constrained answer when the user asks for inaccessible information.
+- Pattern-based detection on the normalized query.
+- Runs before RBAC and retrieval, so obvious prompt-injection
+  attempts are refused without paying for authorization or retrieval
+  work.
+- High-risk verdicts refuse the request.
+- The pattern set is versioned.
 
-Risk signals:
+### LLM Guard
+
+- The Guardrail Model classifies the normalized query and retrieved
+  chunks.
+- High-risk classification refuses the request, downgrades retrieved
+  chunks, or constrains generation.
+- Guardrail verdict is recorded in `audit_logs`.
+
+### Risk Signals
 
 - Requests to ignore previous instructions.
 - Requests to reveal system prompts, keys, credentials, or policies.
@@ -72,58 +122,90 @@ Risk signals:
 - Instructions to skip access checks or logging.
 - Obfuscated commands, hidden text, or encoded payloads.
 
+The system prefers quoting or citing suspicious text over following
+it, and returns a refusal or constrained answer when the actor asks
+for inaccessible information.
+
 ## Data Handling
 
-- Store only required document text, metadata, embeddings, and audit data.
-- Keep original document references when possible for traceability.
-- Do not log secrets, raw credentials, or full private documents.
-- Mask or hash sensitive identifiers in logs unless exact values are required for audit.
-- Retain deleted document tombstones long enough to prevent stale retrieval.
+- Store only required document text, metadata, embeddings, and audit
+  data.
+- Original document references are kept for traceability.
+- Secrets, raw credentials, and full private documents are not logged.
+- Sensitive identifiers are masked or hashed in logs unless exact
+  values are required for audit.
+- Deleted document tombstones are retained long enough to prevent
+  stale retrieval.
 
 ## Logging And Audit
 
-Log security-relevant events:
+Security-relevant events written to `audit_logs`:
 
 - Authentication outcome.
-- Authorization denial.
+- Authorization outcome.
+- Retrieval outcome with filter summary.
+- Regex guard verdict.
+- LLM guard verdict.
+- Citation verification outcome.
 - Ingestion job lifecycle.
-- Document ACL changes.
-- Retrieval query with policy-filter summary.
-- Answer generation with citation IDs.
-- Prompt-injection detections.
-- Evaluation runs and failures.
+- Evaluation run outcome.
 
-Audit logs should include:
+`audit_logs` includes:
 
-- Actor.
-- Action.
-- Resource ID.
-- Decision.
-- Reason code.
-- Timestamp.
-- Correlation ID.
+- actor
+- action
+- resource id
+- decision
+- reason_code
+- correlation_id
+- timestamp
 
 Do not log:
 
 - API keys.
 - Passwords.
 - Raw access tokens.
-- Full prompts when they contain sensitive document text, unless a secure debug mode is explicitly enabled.
+- Full prompts when they contain sensitive document text, unless a
+  secure debug mode is explicitly enabled.
 
 ## Evaluation Policy
 
-Every retrieval or authorization change needs regression coverage for:
+Two evaluation systems run independently.
 
-- Allowed user can retrieve expected documents.
-- Denied user cannot retrieve restricted documents.
-- Hybrid retrieval preserves ACL filters.
-- Citations never point to unauthorized documents.
-- Prompt-injection samples do not alter policy behavior.
+System 1: RAGAS
+
+- Faithfulness
+- Context Precision
+- Context Recall
+- Answer Relevancy
+
+System 2: RBAC Access Outcome Suite
+
+- Allow Tests
+- Deny Tests
+- Department Tests
+- Clearance Tests
+
+Both systems are required. RAGAS does not replace access outcome
+tests. Access outcome tests do not replace RAGAS.
 
 ## Operational Policy
 
 - Use least-privilege database accounts.
-- Keep migrations reversible when practical.
-- Use correlation IDs across API, workflow, database, and LLM calls.
-- Fail closed on policy-service errors.
-- Fail with a clear user-safe message on retrieval or generation errors.
+- Migrations are reversible when practical.
+- Correlation IDs flow through API, workflow, retrieval, LLM, and
+  audit writes.
+- Fail closed on access-decision errors.
+- Fail with a clear user-safe message on retrieval or generation
+  errors.
+
+## Out of V1 Scope
+
+These are not part of V1 and are not policy:
+
+- ACL engines, `document_acl`, ACL grants.
+- Permissions, roles-as-authorization, `role_permissions`.
+- Groups, group memberships, group-based authorization.
+- OIDC, Okta, Entra ID, LDAP, identity federation, external IAM.
+- Permission resolution engines.
+- Policy engines beyond department + clearance.

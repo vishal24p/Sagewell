@@ -2,38 +2,48 @@
 
 ## Functional Requirements
 
-- Authenticate users.
-- Map users to roles and groups.
-- Track user department and clearance level.
+- Authenticate the actor via JWT on every request.
+- Apply the access decision (department + clearance) before retrieval.
 - Ingest documents from approved sources.
-- Track document versions and checksums.
-- Chunk documents and store embeddings.
-- Run vector and lexical retrieval.
-- Enforce RBAC before and after retrieval.
-- Enforce department and clearance filters during retrieval.
-- Generate answers with citations.
-- Detect prompt-injection risk in retrieved content.
-- Record audit events.
-- Run RAGAS and RBAC eval suites.
+- Track document content checksums for incremental re-ingestion.
+- Chunk documents and store embeddings using LlamaIndex.
+- Run dense retrieval (pgvector) and BM25 retrieval (pg_search) with
+  the access decision applied.
+- Apply RRF fusion and cross-encoder reranking.
+- Re-apply the access decision after reranking.
+- Run regex guard and LLM guard on the primary request path.
+- Generate answers with citation verification.
+- Verify every citation by re-running the access decision.
+- Write `audit_logs`, `retrieval_logs`, and `evaluation_results` for
+  every workflow run.
 
 ## Non-Functional Requirements
 
 - Fail closed on authorization uncertainty.
 - Keep retrieval behavior observable.
-- Keep ingestion idempotent.
-- Keep architecture boundaries testable.
+- Keep ingestion idempotent through content checksums.
+- Keep workflow steps explicit and individually testable.
 - Keep errors safe for end users.
 - Avoid storing secrets in logs.
 - Support deterministic regression tests.
 
 ## Security Requirements
 
-- Deny unauthorized document access.
-- Prevent citation leaks.
-- Prevent existence leaks where possible.
-- Treat documents as untrusted data.
-- Log policy decisions with reason codes.
+- Deny access when the access decision fails.
+- Prevent citation leaks by re-running the access decision at
+  citation verification.
+- Prevent existence leaks through counts, citations, or answer text.
+- Treat retrieved documents as untrusted data.
+- Log policy decisions with stable reason codes.
 - Redact sensitive data in operational logs.
+
+## Evaluation Requirements
+
+- Run the RAGAS suite with Faithfulness, Context Precision, Context
+  Recall, and Answer Relevancy.
+- Run the RBAC Access Outcome Suite with Allow, Deny, Department, and
+  Clearance tests.
+- Both suites are required. Neither replaces the other.
 
 ## Documentation Requirements
 
@@ -44,4 +54,12 @@
 - Policies live in `POLICIES.md`.
 - Tooling lives in `TOOLS.md`.
 - Skill routing lives in `SKILLS.md`.
-- Decisions live in `MEMORY.md` and `docs/adr/`.
+- Authoritative decisions live in `MEMORY.md` and `docs/adr/`.
+
+## V1 Out of Scope
+
+- Multi-tenant isolation.
+- ACL engine, `document_acl`, permissions, role_permissions.
+- Groups and group-based authorization.
+- OIDC, Okta, Entra ID, LDAP, identity federation, external IAM.
+- Permission resolution engines.

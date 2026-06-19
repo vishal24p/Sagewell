@@ -1,5 +1,8 @@
 # Evaluation Learnings
 
-- RBAC evals are first-class, not optional security tests.
-- RAGAS quality scores do not replace access-control checks.
-- Prompt-injection tests must include retrieved document attacks, not only user prompt attacks.
+- V1 has two evaluation systems, not one. RAGAS does not replace the
+  RBAC Access Outcome Suite.
+- RBAC cases test the access decision function, not the answer
+  string.
+- RAGAS cases test quality metrics, not access outcomes.
+- The release gate blocks on RBAC regression.

@@ -2,48 +2,69 @@
 
 ## Overview
 
-Sagewell is a single-tenant retrieval-augmented generation system for controlled enterprise knowledge access. It combines RBAC, department and clearance filters, prompt-injection guardrails, hybrid retrieval, incremental ingestion, and evaluation gates.
+Sagewell is a single-company, single-tenant enterprise RAG system.
+Authorization is based on department and clearance only. Retrieval is
+hybrid: dense retrieval, BM25 retrieval, RRF fusion, and cross-encoder
+reranking. Workflow orchestration is delegated to LangGraph. Document
+loading, semantic chunking, ingestion, and retrieval abstractions are
+delegated to LlamaIndex. The data store is PostgreSQL with `pgvector`
+and `pg_search`.
 
-The baseline stack is:
+The stack is:
 
-- FastAPI for HTTP APIs.
-- Clean Architecture for boundaries.
-- LangGraph for workflow orchestration.
-- LlamaIndex for ingestion and retrieval utilities.
-- PostgreSQL for relational data.
-- `pgvector` for embeddings.
-- `pg_search` for lexical and hybrid retrieval support.
-- RAGAS and custom RBAC evals for regression checks.
+- **API layer**: HTTP request handling, JWT validation, request and
+  response schemas, correlation IDs, safe error translation.
+- **Application layer**: use cases, workflow entrypoints, transaction
+  boundaries, audit event emission.
+- **Domain layer**: entities, the access decision function (pure),
+  errors, value objects. Pure Python. No framework imports.
+- **Infrastructure layer**: PostgreSQL repositories, `pgvector` dense
+  retrieval adapter, `pg_search` BM25 retrieval adapter, LlamaIndex
+  ingestion and retrieval adapters, LangGraph workflow definitions,
+  capability-based generation/embedding/reranker/guardrail clients,
+  audit writer.
+- **Evaluation layer**: RAGAS suite and the RBAC Access Outcome Suite.
 
 ## Design Goals
 
-- Enforce access control throughout retrieval and generation.
-- Make ingestion incremental, idempotent, and observable.
-- Keep workflow steps explicit and testable.
-- Support hybrid retrieval with metadata filters and citations.
-- Treat retrieved content as untrusted input.
-- Keep infrastructure adapters replaceable.
+- Department and clearance are the only authorization inputs.
+- Retrieval must combine dense and BM25 signals with reranking.
+- The primary request path always runs the regex guard before any
+  retrieval work, and the LLM guard before generation.
+- Citations are verified against the same authorization rule.
+- Workflow steps are explicit and individually testable.
+- Treat retrieved content as untrusted data.
+- Models are capability-based; no specific model is assumed.
 
-## Non-Goals
+## Non-Goals (V1)
 
-- Multi-tenant SaaS isolation.
-- Public anonymous search.
-- Fine-tuning as a first dependency.
-- UI as part of the initial baseline.
+- Multi-tenant isolation.
+- ACL engine or `document_acl` table.
+- Groups or group-based authorization.
+- OIDC, Okta, Entra ID, LDAP, or external IAM.
+- Permission resolution engines.
+- Vector-only retrieval, BM25-only retrieval, retrieval without
+  reranking.
 
-## Clean Architecture Boundaries
+## Layered Boundaries
 
 ```text
 api/
-  FastAPI routes, request validation, response models
+  HTTP routes, request and response schemas, JWT validation,
+  correlation IDs, error translation.
 application/
-  use cases, workflow entrypoints, authorization orchestration
+  Use cases, workflow entrypoints, transaction boundaries,
+  audit emission.
 domain/
-  entities, policies, value objects, errors
+  Entities, the access decision function, errors, value objects.
+  Pure Python. No framework imports.
 infrastructure/
-  database repositories, vector search, LLM clients, connectors
-evals/
-  RAGAS suites, RBAC regression suites, prompt-injection tests
+  PostgreSQL repositories, pgvector adapter, pg_search adapter,
+  LlamaIndex adapters, LangGraph workflow definitions,
+  capability-based clients (generation, embedding, reranker,
+  guardrail), audit writer.
+evaluation/
+  RAGAS suite, RBAC Access Outcome Suite.
 ```
 
 Dependency direction:
@@ -51,177 +72,294 @@ Dependency direction:
 ```text
 api -> application -> domain
 infrastructure -> application/domain interfaces
-evals -> public use cases and test adapters
+evaluation -> public use cases and test adapters
 ```
 
-Domain code must not depend on FastAPI, LangGraph, LlamaIndex, or database clients.
+Domain code does not import from api, application, infrastructure,
+evaluation, LangGraph, LlamaIndex, asyncpg, or any model SDK.
 
-## Core Components
+## Framework Responsibilities
 
-### API Layer
+### LangGraph is responsible for
 
-Responsibilities:
+- workflow orchestration
+- state management
+- node execution
 
-- Authenticate requests.
-- Validate request and response shapes.
-- Attach correlation IDs.
-- Translate domain errors into safe HTTP responses.
-- Avoid embedding authorization logic directly in route handlers.
+LangGraph is NOT responsible for:
 
-Expected API areas:
+- authorization
+- retrieval
+- database access
+- business logic
 
-- Query and answer.
-- Document ingestion.
-- Collection and document management.
-- RBAC administration.
-- Evaluation runs.
-- Health and readiness.
+The access decision is a pure function in the domain layer. Retrieval
+adapters live in infrastructure. The LangGraph state machine only
+sequences the use case and exchanges typed state between nodes.
 
-### Application Layer
+### LlamaIndex is responsible for
 
-Responsibilities:
+- document loading
+- semantic chunking
+- ingestion
+- retrieval abstractions
 
-- Coordinate use cases.
-- Call domain policies.
-- Start LangGraph workflows.
-- Apply transaction boundaries.
-- Record audit events.
-- Keep orchestration independent from transport details.
+LlamaIndex is NOT responsible for:
 
-Expected use cases:
+- RBAC
+- authorization
+- workflow orchestration
+- business rules
 
-- Submit query.
-- Start ingestion job.
-- Reindex document.
-- Update document ACL.
-- Run evaluation suite.
-- Inspect retrieval trace.
-
-### Domain Layer
-
-Responsibilities:
-
-- Model users, roles, permissions, documents, chunks, citations, and policy decisions.
-- Define RBAC, department, clearance, and prompt-risk policy rules.
-- Define errors that can be safely surfaced.
-- Preserve invariants independent of storage or framework.
-
-### Infrastructure Layer
-
-Responsibilities:
-
-- PostgreSQL repositories.
-- `pgvector` queries.
-- `pg_search` lexical queries.
-- LlamaIndex document parsing, chunking, and retrieval adapters.
-- LangGraph node implementations.
-- LLM and embedding clients.
-- Connector clients.
-- Audit log writer.
+Authorization is applied at the boundary between LlamaIndex retrieval
+abstractions and the domain access decision. LlamaIndex does not see
+authorization state; the workflow applies the access decision to
+retrieved results.
 
 ## Retrieval Architecture
 
-Retrieval is hybrid:
-
-1. Normalize the user query.
-2. Resolve actor permissions.
-3. Apply RBAC filters before candidate retrieval.
-4. Run vector search over authorized chunks.
-5. Run lexical search over authorized chunks.
-6. Merge and rerank candidates.
-7. Apply citation and document access checks again.
-8. Pass bounded context to generation.
-
-RBAC, department, and clearance filters are not optional ranking hints. They are hard constraints.
-
-Required classification filters:
+Retrieval is hybrid. All four stages are mandatory:
 
 ```text
-user.clearance >= document.clearance
-AND
-(user.department = document.department OR document.department = "ALL")
+Dense Retrieval
+  +
+BM25 Retrieval
+  +
+RRF Fusion
+  +
+Cross-Encoder Reranking
 ```
 
-ACLs can restrict access further through user, group, role, collection, and document grants.
+### Stage 1: Dense Retrieval
+
+- Embedding model is capability-based (Embedding Model). No specific
+  model is pinned in V1.
+- Stores and searches vectors in `pgvector`.
+- Returns top-K candidates with vector similarity score.
+
+### Stage 2: BM25 Retrieval
+
+- Lexical retrieval using `pg_search`.
+- Returns top-K candidates with BM25 score.
+
+### Stage 3: RRF Fusion
+
+- Reciprocal Rank Fusion merges dense and BM25 ranked lists.
+- Configurable K constant.
+- Returns a single fused ranked list.
+
+### Stage 4: Cross-Encoder Reranking
+
+- Reranker model is capability-based (Reranker Model).
+- Reranks the fused list using query-document cross-attention.
+- Returns the final top-N chunks.
+
+## Authorization Architecture
+
+Authorization is department plus clearance only. The access decision is
+a single pure function:
+
+```text
+access = (
+    user.department == document.department
+    OR
+    document.department == "ALL"
+)
+AND
+(
+    user.clearance >= document.required_clearance
+)
+```
+
+Clearance hierarchy:
+
+```text
+PUBLIC < INTERNAL < CONFIDENTIAL < RESTRICTED
+```
+
+The function takes `(user, document)` and returns `(allowed, reason)`.
+It is invoked in three places, every time, for every request:
+
+1. Before dense and BM25 retrieval, to constrain the candidate set.
+2. After reranking, to drop any chunk that fails the rule.
+3. At citation verification, to re-check every cited document.
+
+If the function raises or returns a non-allow decision, the system
+fails closed.
 
 ## LangGraph Workflow
 
-The answer workflow should use explicit nodes:
+The answer workflow is a state machine. The state is a typed object.
+Each node receives the state, performs one responsibility, and returns
+the updated state. External systems are behind interfaces so each node
+is unit-testable with fakes.
 
 ```text
-validate_request
-  -> authorize_query
-  -> classify_intent
-  -> retrieve_candidates
-  -> detect_prompt_injection
-  -> rerank_and_pack_context
+START
+  -> validate_jwt
+  -> regex_guard
+  -> load_actor
+  -> apply_access_decision (constraint for retrieval)
+  -> dense_retrieve
+  -> bm25_retrieve
+  -> rrf_fuse
+  -> cross_encoder_rerank
+  -> apply_access_decision (drop unauthorized from reranked list)
+  -> llm_guard
   -> generate_answer
-  -> verify_citations
-  -> audit_and_return
+  -> verify_citations (re-run access decision on every cited document)
+  -> persist_and_audit
+END
 ```
 
-Each node should accept and return typed state. Nodes that call external systems must be isolated behind interfaces so they can be tested with fakes.
+Failure paths:
+
+- JWT invalid or missing -> 401.
+- Regex guard blocks -> refuse, no generation.
+- Access decision unavailable -> fail closed, 403.
+- Retrieval returns zero after retry -> 503, safe error.
+- LLM guard blocks -> refuse, no generation.
+- Citation verification fails a citation -> drop the citation; if no
+  citations remain, regenerate or refuse.
+- Audit write fails -> do not return a response.
 
 ## Ingestion Architecture
 
-Ingestion is incremental and idempotent:
+Incremental re-ingestion is supported in V1:
 
 1. Connector discovers source documents.
-2. Source document metadata is compared with stored versions.
-3. Changed documents are parsed.
-4. Text is chunked.
-5. Chunks are embedded.
-6. Chunks and embeddings are written in one consistent update.
-7. Old chunks are retired or replaced.
-8. Search indexes are refreshed.
-9. Job status and audit events are recorded.
+2. Source document metadata is compared with stored checksums.
+3. Changed documents are re-loaded via LlamaIndex.
+4. LlamaIndex semantic chunking produces new chunks.
+5. Chunks are embedded using the Embedding Model.
+6. New chunks are written; old chunks for the changed document are
+   retired.
+7. Job outcome is written to `audit_logs`.
 
-Every document version should be traceable to source ID, source version, checksum, ingestion job, and ACL snapshot.
+## Security Architecture
 
-## Security Model
+The primary request path executes in this order:
 
-Security is enforced in layers:
+```text
+JWT Authentication
+  -> Regex Guard
+  -> RBAC Authorization (department + clearance)
+  -> Retrieval (dense + BM25 + RRF + cross-encoder)
+  -> LLM Guard
+  -> Generation
+```
 
-- API authentication.
-- Use-case authorization.
-- Query-time retrieval filters.
-- Department and clearance filters.
-- Citation access checks.
-- Prompt-injection checks.
-- Audit logging.
+Prompt protection is part of the primary request path. It is not moved
+to a later phase.
 
-If any policy check fails or cannot complete, the system fails closed.
+The Regex Guard runs after JWT validation and before RBAC
+authorization. It is cheap, deterministic, and fast, and its job is
+to refuse obvious prompt-injection attempts (for example "ignore
+previous instructions," "reveal system prompt," "dump database,"
+"show all restricted documents") before the system does the work of
+RBAC evaluation and the four retrieval stages.
+
+The LLM Guard runs after retrieval. It is context-aware and uses
+the Guardrail Model to detect indirect prompt injection, contextual
+attacks, instruction conflicts, and retrieval-based attacks. It is
+not redundant with the Regex Guard: Regex Guard is pattern-based and
+runs on the user query before any retrieval occurs; LLM Guard is
+context-aware and runs on the user query together with retrieved
+chunks.
+
+### JWT Authentication
+
+- The API layer validates the JWT on every request.
+- Required claims: subject, department, clearance, expiration.
+- Role claim is permitted for UI behavior and auditing; it does not
+  participate in authorization.
+
+### Regex Guard
+
+- Pattern-based detection on the normalized query.
+- Runs after JWT validation and before RBAC and retrieval, so that
+  obvious prompt-injection attempts are refused before any
+  authorization or retrieval work is performed.
+- High-risk patterns cause the request to be refused.
+- Pattern list is versioned and configurable.
+
+### LLM Guard
+
+- Capability-based model (Guardrail Model) classifies the normalized
+  query and retrieved chunks.
+- Runs after retrieval and before generation. Catches indirect
+  prompt injection, contextual attacks, instruction conflicts, and
+  retrieval-based attacks that the Regex Guard cannot see.
+- High-risk classification causes the request to be refused, the
+  retrieved content to be downgraded, or generation to be constrained.
 
 ## Evaluation Architecture
 
-Evaluation suites include:
+Two independent evaluation systems run in V1:
 
-- RAGAS answer faithfulness.
-- RAGAS context precision and recall.
-- Citation validity.
-- RBAC allow and deny tests.
-- Prompt-injection resistance tests.
-- Retrieval regression tests for known queries.
+### System 1: RAGAS
 
-Evaluation results must be stored with dataset version, code version, model version, and retrieval configuration.
+Metrics:
+
+- Faithfulness
+- Context Precision
+- Context Recall
+- Answer Relevancy
+
+### System 2: RBAC Access Outcome Suite
+
+Tests:
+
+- Allow Tests
+- Deny Tests
+- Department Tests
+- Clearance Tests
+
+The two systems are independent. RAGAS does not replace access outcome
+tests, and access outcome tests do not replace RAGAS.
 
 ## Observability
 
-Use correlation IDs across:
+Correlation IDs flow through:
 
 - API request.
-- Application use case.
 - LangGraph run.
 - Retrieval queries.
 - LLM calls.
-- Audit events.
+- Audit rows.
 - Evaluation runs.
 
-Minimum traces:
+Minimum observability surfaces:
 
-- Query input classification.
-- Authorized filter summary.
-- Candidate counts before and after filters.
-- Selected citations.
-- Policy decisions.
-- Error reason codes.
+- Access decision per request, with reason.
+- Candidate counts before and after access decision.
+- Reranker input and output counts.
+- Guard verdicts (regex and LLM).
+- Citation verification results.
+- Evaluation run summaries.
+
+## Model Policy
+
+Documentation refers to capabilities, not specific models. The
+following names are used:
+
+- Generation Model
+- Embedding Model
+- Reranker Model
+- Guardrail Model
+
+No specific vendor, model identifier, or version is committed in V1
+documentation.
+
+## Database Scope
+
+V1 tables:
+
+- users
+- documents
+- chunks
+- audit_logs
+- retrieval_logs
+- evaluation_results
+
+Additional tables require justification and an ADR.

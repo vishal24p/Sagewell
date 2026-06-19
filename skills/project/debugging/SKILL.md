@@ -1,6 +1,7 @@
 # Debugging Skill
 
-Use this local skill for broken commands, regressions, failed evals, and unclear runtime behavior.
+Use this skill for broken commands, regressions, failed evals, and
+unclear runtime behavior.
 
 ## Inputs
 
@@ -11,13 +12,19 @@ Use this local skill for broken commands, regressions, failed evals, and unclear
 ## Checklist
 
 - Start with the smallest failing reproduction.
-- Capture correlation ID when available.
-- Check audit events before assuming retrieval is wrong.
-- Compare actor roles, groups, and document ACLs.
-- Inspect policy filter summary.
-- Inspect candidate counts before and after filters.
-- Convert confirmed failures into regression tests.
+- Capture `correlation_id`.
+- Inspect `audit_logs` first.
+- Inspect `retrieval_logs` next: `policy_filter`, `candidate_counts`,
+  and `retrieval_config`.
+- Check the actor's `department` and `clearance` against the
+  document's `department` and `required_clearance`.
+- Check the access decision outcome and `reason_code` at all three
+  boundaries: pre-retrieval, post-rerank, citation verification.
+- Check regex guard and LLM guard verdicts.
+- Check citation verification results.
+- Convert confirmed failures into evaluation_results cases.
 
 ## Done Condition
 
-The root cause is identified, the fix path is clear, and a regression check is defined.
+The root cause is identified, the fix path is clear, and a regression
+case is recorded in `evaluation_results`.

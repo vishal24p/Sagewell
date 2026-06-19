@@ -1,5 +1,7 @@
 # Ingestion Pipeline Learnings
 
-- Incremental ingestion depends on stable source IDs and checksums.
-- Deleted source documents must retire searchable chunks.
-- A failed document should be isolated when the connector permits partial success.
+- Incremental re-ingestion keys off `documents.content_checksum`.
+- LlamaIndex does not see authorization state; the workflow applies
+  the access decision.
+- A failed embedding write must not leave active chunks behind.
+- The job outcome goes to `audit_logs`, not a separate jobs table.

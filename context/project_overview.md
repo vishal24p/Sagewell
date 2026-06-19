@@ -1,33 +1,49 @@
 # Project Overview
 
-Sagewell is a single-tenant enterprise retrieval-augmented generation system. It is designed for controlled access to private organizational knowledge, not open public search.
+Sagewell is a single-company, single-tenant enterprise RAG system. It
+answers questions over private organizational documents using
+department and clearance as the only authorization mechanism.
 
 ## Baseline
 
-- FastAPI backend.
-- Clean Architecture.
-- LangGraph workflow orchestration.
-- LlamaIndex ingestion and retrieval utilities.
-- PostgreSQL primary database.
-- `pgvector` for embeddings.
-- `pg_search` for lexical and hybrid retrieval.
-- RBAC enforcement across retrieval and answer generation.
-- Prompt-injection guardrails.
-- Incremental ingestion.
-- RAGAS and custom RBAC evals.
+- API layer with JWT authentication.
+- Authorization: department + clearance only.
+- Retrieval: dense + BM25 + RRF + cross-encoder reranking.
+- Workflow orchestration: LangGraph.
+- Document loading, semantic chunking, ingestion, retrieval
+  abstractions: LlamaIndex.
+- Data store: PostgreSQL with `pgvector` and `pg_search`.
+- Prompt protection: regex guard and LLM guard on the primary request
+  path.
+- Evaluation: RAGAS and the RBAC Access Outcome Suite (both
+  required).
+- Models: capability-based. Generation Model, Embedding Model,
+  Reranker Model, Guardrail Model.
 
 ## Success Criteria
 
-- A user can only retrieve and cite content they are allowed to access.
-- Ingestion can update changed documents without rebuilding everything.
-- Retrieval combines semantic and lexical matching.
+- An actor can only retrieve and cite content the access decision
+  permits.
+- Ingestion updates changed documents without rebuilding everything.
+- Retrieval combines dense and BM25 signals with reranking.
 - Answers include verifiable citations.
-- Prompt-injection attempts inside documents do not override system policy.
-- Evaluation catches access-control and retrieval regressions.
+- Regex and LLM guards run on the primary request path.
+- Prompt-injection attempts in documents do not override system
+  policy.
+- RAGAS and the RBAC Access Outcome Suite both run on every release
+  gate.
 
 ## Primary Users
 
 - Enterprise employees asking questions over internal documents.
-- Knowledge admins managing sources and ACLs.
+- Knowledge admins managing sources.
 - Engineers operating ingestion, retrieval, and evaluation.
 - Security reviewers auditing access behavior.
+
+## V1 Out of Scope
+
+- Multi-tenant isolation.
+- ACL engine, `document_acl`, permissions, role_permissions.
+- Groups and group-based authorization.
+- OIDC, Okta, Entra ID, LDAP, identity federation, external IAM.
+- Permission resolution engines.

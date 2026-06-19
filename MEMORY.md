@@ -1,48 +1,65 @@
 # Memory
 
-This file records durable project decisions, assumptions, and open questions. Use ADRs for decisions with architectural consequences.
+Authoritative project decisions, assumptions, and open questions for
+Sagewell V1. Architecture decision records live in `docs/adr/`.
 
 ## Current Baseline
 
-- Sagewell is a single-tenant Enterprise RAG system.
-- Backend uses FastAPI with Clean Architecture.
-- Workflow orchestration uses LangGraph.
-- Ingestion and retrieval utilities use LlamaIndex.
-- PostgreSQL is the primary datastore.
-- `pgvector` stores embeddings.
-- `pg_search` supports lexical and hybrid retrieval.
-- Evaluation uses RAGAS plus custom RBAC evals.
-- CodeGraph is initialized for the workspace.
+- Single-company, single-tenant Enterprise RAG.
+- Authorization: department + clearance only.
+- Retrieval: dense + BM25 + RRF fusion + cross-encoder reranking.
+- Workflow orchestration: LangGraph.
+- Document loading, semantic chunking, ingestion, retrieval
+  abstractions: LlamaIndex.
+- Data store: PostgreSQL with `pgvector` and `pg_search`.
+- Authentication: JWT.
+- Prompt protection: regex guard and LLM guard on the primary
+  request path.
+- Evaluation: RAGAS and the RBAC Access Outcome Suite (both required).
+- Models: capability-based. Generation Model, Embedding Model,
+  Reranker Model, Guardrail Model.
+- V1 tables: users, documents, chunks, audit_logs, retrieval_logs,
+  evaluation_results.
 
 ## Accepted Decisions
 
 | Date | Decision | Record |
 |---|---|---|
-| 2026-06-18 | Use a single-tenant Enterprise RAG baseline with RBAC, guardrails, hybrid retrieval, incremental ingestion, FastAPI, Clean Architecture, LangGraph, LlamaIndex, PostgreSQL, `pgvector`, `pg_search`, RAGAS, and custom RBAC evals. | `docs/adr/0001-single-tenant-enterprise-rag-baseline.md` |
-| 2026-06-18 | Keep `AGENTS.md` as behavior and pointers only. Put architecture, schema, workflows, policies, tools, and skill routing in separate documents. | This file |
-| 2026-06-18 | Route agents to local repo skills first: `skills/project/` for project skills and `skills/external/` for vendored external skills. Do not depend on outside installed skill paths for this project. | `SKILLS.md` |
-| 2026-06-18 | Name the project Sagewell and document the intended GitHub repository name as `sagewell`. Do not rename the local workspace directory. | `README.md` |
+| 2026-06-19 | V1 architecture is single-company, single-tenant, with department and clearance as the only authorization inputs, hybrid retrieval (dense + BM25 + RRF + cross-encoder), LangGraph orchestration, LlamaIndex for document loading, semantic chunking, ingestion, and retrieval abstractions, JWT authentication, regex guard and LLM guard on the primary request path, RAGAS and RBAC Access Outcome Suite evaluation, and capability-based model references. | `docs/adr/0001-single-tenant-enterprise-rag-baseline.md` |
+| 2026-06-19 | `MEMORY.md` is the authoritative decisions log. `context/decisions.md` is a pointer to this file. | This file |
+| 2026-06-19 | Local skills are the source of routing. `skills/project/` for project skills, `skills/external/` for vendored external skills. Do not depend on outside installed skill paths for this project. | `SKILLS.md` |
+| 2026-06-19 | Project name is Sagewell. Intended GitHub repository name is `sagewell`. Do not rename the local workspace directory. | `README.md` |
+| 2026-06-19 | V1 implementation sequencing: JWT validation is introduced before the LangGraph skeleton. The LangGraph state is typed with `user_id`, `department`, `clearance`, `role`, and `correlation_id` from the first test. Anonymous workflow execution is impossible. The full milestone list M0-M14 is in `PROJECT_STATUS.md`. | `PROJECT_STATUS.md` |
+| 2026-06-19 | Agent-handoff architecture: `AGENTS.md` is the project constitution (permanent rules only). `NEXT_AGENT.md` carries the operational entry point. `docs/HANDOFF/CURRENT_STATE.md`, `docs/HANDOFF/DECISIONS_PENDING.md`, and `docs/HANDOFF/KNOWN_ISSUES.md` carry progress, pending decisions, and unresolved engineering concerns respectively. | `AGENTS.md`, `NEXT_AGENT.md`, `docs/HANDOFF/` |
 
 ## Assumptions
 
-- Tenant isolation is deployment-level because the project is single tenant.
-- Internal users still have different access levels, so RBAC remains mandatory.
-- Documents may contain hostile or misleading instructions.
-- Source implementation has not started in this scaffold.
-- A future implementation will add concrete migration, test, and deployment commands.
+- Department and clearance are sufficient for V1 authorization.
+- A future version may introduce ACLs, groups, or external IAM. Any
+  such change requires an ADR and is not in V1.
+- Source implementation has not started in V1 documentation.
+- A future implementation will add concrete migration, test, and
+  deployment commands.
+- The access decision is a single pure function invoked at every
+  boundary (pre-retrieval, post-rerank, citation verification).
 
 ## Open Questions
 
-- Which identity provider will be used for authentication?
-- Are document ACLs imported from source systems, managed locally, or both?
-- Which embedding model and reranker will be approved for production?
-- What document connectors are in first scope?
-- What data retention policy applies to prompts, answers, traces, and audit logs?
-- What latency and cost targets should retrieval and generation meet?
-- Will deployment run in containers, managed app services, or another platform?
+- Which JWT signing algorithm and key management approach?
+- Which Embedding Model, Reranker Model, Guardrail Model, and
+  Generation Model capabilities will be adopted?
+- Which `pg_search` distribution and version?
+- What are the RAGAS score thresholds and the RBAC Access Outcome
+  thresholds for the release gate?
+- What retention policy applies to audit_logs, retrieval_logs, and
+  evaluation_results?
 
 ## Update Rules
 
 - Add concise entries when a decision affects future implementation.
-- Move architectural decisions into `docs/adr/` when alternatives and consequences matter.
+- Move architectural decisions into `docs/adr/` when alternatives and
+  consequences matter.
 - Do not store secrets, credentials, or private customer data here.
+- Do not duplicate this file. If `context/decisions.md` is updated,
+  update this file instead and keep `context/decisions.md` as a
+  pointer.

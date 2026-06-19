@@ -1,5 +1,6 @@
 # Database Design Learnings
 
-- `document_acl` is the authority unless an ADR changes that.
-- `chunk_acl_snapshot` is an optimization, not the source of truth.
-- ACL and retrieval indexes are release blockers, not later polish.
+- V1 has six tables. Anything else needs an ADR.
+- The access decision reads from `users` and `documents` only.
+- `audit_logs` is the only security event store in V1.
+- Incremental re-ingestion keys off `documents.content_checksum`.
