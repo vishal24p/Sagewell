@@ -1,17 +1,22 @@
 [project]
 name = "sagewell"
 version = "0.1.0"
-description = "Sagewell V1 enterprise RAG (M0: access decision pure + RBAC suite; M2: ports + in-memory and Postgres adapters)."
+description = "Sagewell V1 enterprise RAG (M0: access decision pure + RBAC suite; M2: ports + in-memory and Postgres adapters; M3: API skeleton)."
 requires-python = ">=3.11"
 dependencies = [
     "asyncpg>=0.30,<0.32",
     "pgvector>=0.3,<0.5",
+    "fastapi>=0.115,<0.117",
+    "pydantic>=2.8,<3.0",
+    "pydantic-settings>=2.4,<3.0",
+    "uvicorn[standard]>=0.30,<0.40",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0,<10.0",
     "pytest-asyncio>=0.23,<2.0",
+    "httpx>=0.27,<1.0",
 ]
 
 [tool.pytest.ini_options]

@@ -212,6 +212,54 @@ decision. When it is rejected, archive it in this file under
 - **MEMORY.md entry**: 2026-06-20 row "M2 ports layer
   introduced".
 
+### D-020 — M3 correlation id generator algorithm
+
+- **Decision (Approved 2026-06-20)**: UUID4 (`uuid.uuid4()`).
+- **Alternatives considered**: UUIDv7 for sortable ids;
+  deterministically-generated id for trace continuity. Decision
+  prefers UUID4 because the API skeleton's correlation id is a
+  per-request ephemeral generated id without ordering needs.
+
+### D-021 — M3 error envelope shape
+
+- **Decision (Approved 2026-06-20)**: minimum envelope
+  `{code, message, correlation_id}`. Nothing extra at M3. Field
+  validators enforced; the envelope is identical across every
+  error class the skeleton surfaces.
+
+### D-024 — M3 Settings surface
+
+- **Decision (Approved 2026-06-20)**: `SAGEWELL_LOG_LEVEL`,
+  `SAGEWELL_API_HOST`, `SAGEWELL_API_PORT` only.
+- **Removed**: `SAGEWELL_CORS_ALLOWED_ORIGINS` from M3 scope.
+- **Deferred**: `SAGEWELL_DB_URL`, `SAGEWELL_TRUSTED_PROXY_HEADER`,
+  CORS, JWT.
+
+### D-025 — Default docs surface
+
+- **Decision (Approved 2026-06-20)**: `/docs`, `/redoc`,
+  `/openapi.json` enabled by default.
+
+### D-026 — `__main__.py`
+
+- **Decision (Approved 2026-06-20)**: Keep
+  `src/api/__main__.py` so `python -m src.api` is healthy.
+
+### D-027 — Catch-all log keys
+
+- **Decision (Approved 2026-06-20)**: Three keys:
+  `correlation_id`, `exception_type`, `exc_message` (renamed
+  from the originally-spoken `message` to avoid `LogRecord`'s
+  reserved field; semantic content is preserved).
+
+### D-028 — Forward dependency direction for M4+
+
+- **Decision (Approved 2026-06-20)**: `src/api/` MUST NOT
+  import any future workflow, retrieval, or generation module.
+  The dependency direction is `workflow -> api`, not
+  `api -> workflow`. M3 ships with zero such imports; future
+  imports run through it.
+
 ---
 
 ## Approved
@@ -241,6 +289,37 @@ decision. When it is rejected, archive it in this file under
 
 - **Final list**: Six repositories; `IngestionRecordRepository`
   deferred to M7.
+
+### D-020 — M3 correlation id generator (Approved 2026-06-20)
+
+- **Algorithm**: `uuid.uuid4()`. Pure ASGI middleware reads
+  `X-Correlation-ID`; if absent a UUID4 is generated.
+
+### D-021 — M3 error envelope (Approved 2026-06-20)
+
+- **Shape**: `{code, message, correlation_id}`.
+
+### D-024 — M3 Settings surface (Approved 2026-06-20)
+
+- **Fields**: `SAGEWELL_LOG_LEVEL`, `SAGEWELL_API_HOST`,
+  `SAGEWELL_API_PORT`. `SAGEWELL_CORS_ALLOWED_ORIGINS` removed.
+
+### D-025 — Default docs surface (Approved 2026-06-20)
+
+- **Defaults**: `/docs`, `/redoc`, `/openapi.json` enabled.
+
+### D-026 — `__main__.py` (Approved 2026-06-20)
+
+- **Final**: `src/api/__main__.py` retained.
+
+### D-027 — Catch-all log keys (Approved 2026-06-20)
+
+- **Keys**: `correlation_id`, `exception_type`, `exc_message`.
+
+### D-028 — Forward dependency direction (Approved 2026-06-20)
+
+- **Rule**: `src/api/` does not import future workflow,
+  retrieval, or generation. `workflow -> api`.
 
 ---
 

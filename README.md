@@ -58,6 +58,7 @@ Out of scope for V1:
 | `docs/HANDOFF/CURRENT_STATE.md` | Snapshot of repository progress (completed, in progress, not started). |
 | `docs/HANDOFF/DECISIONS_PENDING.md` | Decisions that require human approval before implementation. |
 | `docs/HANDOFF/KNOWN_ISSUES.md` | Unresolved engineering decisions (not bugs, not pending decisions). |
+| `docs/HANDOFF/API_LOCAL_RUN.md` | Bringing up the M3 API skeleton (no DB, no auth). |
 | `context/` | Project context (overview, requirements, decisions pointer, glossary). |
 | `docs/adr/` | Architecture decision records. |
 | `docs/AUDIT_REPORT.md` | Most recent documentation audit and corrections. |
