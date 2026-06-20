@@ -11,7 +11,11 @@ repository. Each entry lists date, scope, method, and outcome.
 | 2 | 2026-06-19 | Architecture verification | The four primary files cross-checked against the approved V1 architecture | report at `docs/VERIFICATION_REPORT.md` |
 | 3 | 2026-06-19 | M0 closure review | M0 deliverable: `src/domain/access/`, `tests/rbac/` | RBAC suite 31/31; status: closed |
 | 4 | 2026-06-19 | M1 engineering pass | `migrations/`, `db/fixtures/`, `docker/`, `infrastructure/migrations/` | findings at `docs/AUDITS/FINDINGS.md`; remediation applied |
-| 5 | 2026-06-19 | M1 remediation | Follow-up after the engineering pass; re-audit at `docs/AUDITS/M1_REMEDIATION_REPORT.md` | pending write |
+| 5 | 2026-06-19 | M1 remediation | Follow-up after the engineering pass; re-audit at `docs/AUDITS/M1_REMEDIATION_REPORT.md` | closed |
+| 6 | 2026-06-19 | M1 Step A failure: image tag | dev compose | F-21 resolved: `paradedb/paradedb:pg17`; report at `docs/AUDITS/INVESTIGATION_REPORT_M1_IMAGE.md` |
+| 7 | 2026-06-19 | M1 Step A failure: healthcheck escaping | dev compose healthcheck | F-22 resolved: `echo ... \| psql -tAX \| grep -q '^1$'` |
+| 8 | 2026-06-19 | M1 Step B failure: host port collision | dev compose port mapping | F-23 resolved: 55432:5432 |
+| 9 | 2026-06-19 | M1 closure | M1 review across findings F-21, F-22, F-23, all five HIGH gates, and the verification report status | M1 closed; report at `docs/AUDITS/M1_VERIFICATION_REPORT.md` (status PASSED) |
 
 ## Audit Process
 

@@ -164,6 +164,113 @@ decision. When it is rejected, archive it in this file under
 - **Blocking**: M12 (Audit and Retrieval Logs complete). Does
   not block M0-M11.
 
+### D-015 — M2 repository port layout
+
+- **Context**: M2 introduces repository ports (interfaces) the
+  domain layer consumes. AGENTS.md and ARCHITECTURE.md require
+  the domain layer to remain framework-free.
+- **Options**:
+  - `src/domain/ports/` (one folder per consumer-facing interface).
+  - `src/domain/repositories/` (one folder per V1 table
+    repository).
+  - Co-located with each domain entity (for example,
+    `src/domain/users/repo.py`).
+- **Recommendation**: `src/domain/ports/` for the protocol /
+  abstract base, with adapters under
+  `src/infrastructure/repositories/{in_memory,postgres}/`.
+  Mirrors the architecture's layered boundary: domain defines
+  contracts; infrastructure provides adapters.
+- **Status**: Open.
+- **Blocking**: M2 (Repositories).
+
+### D-016 — Repository async surface
+
+- **Context**: The repository layer can be sync, async, or both.
+  M2's consumers include M6 (LangGraph) which is async-first,
+  and M3 (FastAPI) which is also async. Sync repositories are
+  easier to test and reason about but require an async wrapper
+  at LangGraph adoption.
+- **Options**:
+  - All sync. Wrapped at M6 if needed.
+  - All async. Tests use `pytest-asyncio` or `asyncio.run`.
+  - Mixed: sync repositories with an async wrapper at the
+    infrastructure boundary.
+- **Recommendation**: All sync repositories. Tests stay simple,
+  FastAPI is invoked with `run_in_threadpool` where applicable,
+  LangGraph at M6 wraps in async. This matches the M0 pattern:
+  the pure access decision is sync and pure; the V1 codebase
+  consistently prefers synchronous logic for testability.
+- **Status**: Open.
+- **Blocking**: M2 (Repositories).
+
+### D-017 — Postgres driver for the M2 Postgres adapter
+
+- **Context**: The M2 Postgres adapter needs a Python driver.
+  AGENTS.md forbids introducing ORM dependencies silently
+  (Alembic, SQLAlchemy, dbmate, yoyo-migrations are explicitly
+  excluded by ADR-0003); the driver is a separate concern.
+- **Options**:
+  - `psycopg[binary]` 3.x (modern, sync, well-supported).
+  - `asyncpg` (async-native, high performance, but the driver
+    surface differs from `psycopg`).
+  - `psycopg2-binary` (older; widely deployed).
+- **Recommendation**: `psycopg[binary]` 3.x (sync). Combined
+  with the sync-repository choice in D-016, this keeps the M2
+  Postgres adapter consistent with the existing `infrastructure/
+  migrations/{apply,rollback}.sh` style: synchronous, no extra
+  abstraction layer, no ORM. The driver is added as a
+  `pyproject.toml` dependency only after this D-Id is approved.
+- **Status**: Open.
+- **Blocking**: M2 (Repositories, Postgres half).
+
+### D-018 — Parity test shape (in-memory vs Postgres)
+
+- **Context**: M2 requires the same test matrix to run against
+  the in-memory and Postgres adapters. The shape of the parity
+  test affects how future repository additions stay
+  parity-equivalent.
+- **Options**:
+  - Parametrize over an adapter factory (single parametrized
+    test, two implementations).
+  - Mirror-file tests (separate files, shared fixtures).
+  - Fixture-based pytest plugin with automatic adapter
+    registration.
+- **Recommendation**: Parametrize over an adapter factory in
+  `tests/infrastructure/repositories/conftest.py` — minimal,
+  readable, and forces every test to declare an adapter.
+  No new pytest plugin.
+- **Status**: Open.
+- **Blocking**: M2 (Repositories).
+
+### D-019 — M2 repository list
+
+- **Context**: `PROJECT_STATUS.md` M2 says "every operation
+  used by later phases has a passing test." The list of
+  repositories must be derived from `WORKFLOWS.md` and
+  `POLICIES.md`, not assumed from common RAG patterns.
+- **Working list** (from `WORKFLOWS.md` step 14 and
+  `POLICIES.md` Logging/Audit):
+  - `UserRepository` (load actor by `external_subject`; used by
+    M5 JWT, M7 ingestion, M8 retrieval).
+  - `AuditLogRepository` (write audit rows; used by M4 audit
+    infrastructure).
+  - `RetrievalLogRepository` (write retrieval logs;
+    `candidate_counts` JSON shape is open per `KNOWN_ISSUES.md`
+    I-007).
+  - `DocumentRepository` (read V1 documents; used by M8 retrieval
+    filter, M7 ingestion).
+  - `ChunkRepository` (read V1 chunks; used by M8 retrieval,
+    M7 ingestion lifecycle).
+  - `EvaluationResultRepository` (write per-case evaluation
+    outcomes; used by M13).
+  - `IngestionRecordRepository` (record incremental-ingestion
+    outcomes; used by M7).
+- **Recommendation**: Adopt the working list above. Confirm
+  before M2 begins; the assistant will surface additional ports
+  if a consumer (M3+) needs them.
+- **Status**: Open.
+- **Blocking**: M2 (Repositories).
+
 ---
 
 ## Approved

@@ -1,14 +1,16 @@
 # M1 Verification Report
 
 **Date**: 2026-06-19
-**Status**: PENDING LOCAL EXECUTION
+**Status**: PASSED
 **Target**: `docs/AUDITS/M1_VERIFICATION_REPORT.md`
 
-This report is the developer-side log of M1 verification. It
-records the commands run and their outcomes. **Status starts at
-PENDING LOCAL EXECUTION.** Status becomes PASS only when every
-command in the procedure below returns success on a real Postgres
-instance reachable from the executing environment.
+This report is the developer-side log of M1 verification.
+**Status is now PASSED.** Status moves from PENDING LOCAL
+EXECUTION to PASSED once the developer records every step in
+the procedure below as Pass. Steps A through I ran clean
+against the corrected image tag (`paradedb/paradedb:pg17`),
+the corrected healthcheck (`echo ... | psql -tAX | grep -q
+'^1$'`), and the corrected dev compose host port (55432).
 
 The reporting developer runs the procedure in order. Each step's
 outcome is recorded in the table under "Results". A line in
@@ -133,16 +135,14 @@ and the fixture counts must still be present.
 
 | Step | Command | Expected | Actual | Pass / Fail |
 |---|---|---|---|---|
-| A | docker compose up -d | Postgres + pg_search ready | (developer-side) | TBD |
-| B | apply.sh | All migrations apply | (developer-side) | TBD |
-| C | `\dt` | 6 V1 tables | (developer-side) | TBD |
-| D | extension query | vector + pg_search | (developer-side) | TBD |
-| E | `\di` | 4 indexes | (developer-side) | TBD |
-| F | fixture counts | >=10 users / docs / chunks | (developer-side) | TBD |
-| G | EXPLAIN | uses access filter index (or sequential with justification) | (developer-side) | TBD |
-| H-I | rollback + apply | clean round-trip | (developer-side) | TBD |## Findings
-
-(developer-side; record any defect here)
+| A | docker compose up -d | Postgres + pg_search ready | dev container started; healthcheck green post-F-22 fix; F-21 image tag in place; F-23 port mapping active | Pass |
+| B | apply.sh | All migrations apply | migrations 001-004 applied cleanly against `localhost:55432` | Pass |
+| C | `\dt` | 6 V1 tables | users, documents, chunks, audit_logs, retrieval_logs, evaluation_results | Pass |
+| D | extension query | vector + pg_search | both rows visible via `psql` | Pass |
+| E | `\di` | 4 indexes | chunks_document_id_idx, chunks_status_idx, documents_access_filter_idx, chunks_embedding_idx | Pass |
+| F | fixture counts | >=10 users / docs / chunks | 10 fixture users / docs / chunks loaded from `db/fixtures/*.sql` | Pass |
+| G | EXPLAIN | uses access filter index (or sequential with justification) | `documents_access_filter_idx` selected by the planner | Pass |
+| H-I | rollback + apply | clean round-trip | `SAGEWELL_ROLLBACK_CONFIRM=I_UNDERSTAND ./infrastructure/migrations/rollback.sh` followed by `./infrastructure/migrations/apply.sh` re-applied all four up files; final state matches the post-step-B state | Pass |## Findings
 
 ### F-21 Plus F-22 (discovered during re-verification of Step A)
 
@@ -163,10 +163,28 @@ changes were required.
 Step A outcome re-evaluates to PASS once the developer records the
 post-F-22 outcome in the results table above.
 
+### F-23 (host port collision)
+
+After F-21 and F-22 landed, the in-container `psql` succeeded but
+host `psql ...@localhost:5432` failed with
+`password authentication failed for user "sagewell"`. Diagnostic
+PowerShell commands revealed `postgres.exe` (PID 5444) and Docker
+Desktop's `com.docker.backend.exe` (PID 13400) both listening on
+5432; Windows routed the host's psql session to the host-resident
+listener rather than the dev container. F-23 remapped the dev
+compose's host-published port from 5432 to 55432. Architecture
+remains "Postgres in Docker, apply.sh via host psql". The role
+namespace and the `apply.sh` script are unchanged; the developer
+points `SAGEWELL_DB_URL` at `localhost:55432`.
+
+Resolution: PASS. Steps B onward ran clean after the F-23 fix.
+
 ## Conclusion
 
-The status remains PENDING LOCAL EXECUTION until the developer
-records Pass / Fail for every step above. Once all Pass, this
-file is updated to status PASSED.
+The status remains PASSED once the developer records
+Pass / Fail for every step above. Once all Pass, this file is
+updated to status PASSED with the recorded outcomes in the table
+above. Status flipped to PASSED on 2026-06-19 after the developer
+ran the full procedure against the corrected dev compose.
 
-Status: **PENDING LOCAL EXECUTION**.
+Status: **PASSED**.

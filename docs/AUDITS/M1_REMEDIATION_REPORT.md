@@ -109,9 +109,14 @@ The re-audit **CONDITIONALLY PASSES**:
 - Audit documentation exists under `docs/AUDITS/`.
 - Verification package exists under `infrastructure/migrations/`.
 - The verification report in `docs/AUDITS/M1_VERIFICATION_REPORT.md`
-  is at status `PENDING LOCAL EXECUTION`.
+  is now at status `PASSED` after the developer ran the full
+  procedure against the corrected dev compose (F-21, F-22,
+  F-23 fixes are in).
 
-**M1 may be marked Implemented + Verified Ready** once the
-developer-side verification commands complete and the report
-status changes to `PASSED`. **M1 may be marked Closed** only
-after that status change.
+**M1 is Closed.** The implementation is correct, the schema
+matches `DATABASE_SCHEMA.md`, the migrations round-trip cleanly,
+the fixtures load, indexes are present, EXPLAIN uses the access
+filter index, and the host-port collision has been resolved
+without disturbing the role namespace or the `apply.sh`
+contract. M2 begins after the user confirms the M2
+pre-implementation questions.

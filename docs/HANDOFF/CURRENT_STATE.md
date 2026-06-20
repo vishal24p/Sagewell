@@ -38,19 +38,14 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M1 — Schema, Migrations, Fixtures, Indexes.**
+**M2 — Repositories.**
 
-Authoring complete. Engineering remediation applied per the
-review at `docs/AUDITS/FINDINGS.md` and `docs/AUDITS/M1_REMEDIATION_REPORT.md`.
-Audit documentation in `docs/AUDITS/`. Verification package
-in `infrastructure/migrations/`.
+M1 closed on 2026-06-19 after developer-side verification ran
+clean against the remediated code (F-21 image tag, F-22 healthcheck
+escaping, F-23 host port). M2 has not yet begun; a
+pre-implementation review is being readied for the user.
 
-M1 status: `Implemented`. M1 will move to `Verified Ready` after
-the verification commands complete and
-`docs/AUDITS/M1_VERIFICATION_REPORT.md` shows status `PASSED`.
-M1 will move to `Closed` after that report is recorded.
-
-Full milestone list: `PROJECT_STATUS.md` (M0-M14).
+Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 ---
 
@@ -59,6 +54,7 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 | Milestone | Description | Date |
 |---|---|---|
 | M0 | Access Decision (pure) and RBAC Access Outcome Suite. | 2026-06-19 |
+| M1 | Schema, Migrations, Fixtures, Indexes. Verified via the F-21 (image tag), F-22 (healthcheck escaping), and F-23 (host port) remedies. | 2026-06-19 |
 
 ### Completed In Documentation
 
@@ -86,7 +82,7 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 
 | Milestone | Description | Owner | Started |
 |---|---|---|---|
-| M1 | Schema, Migrations, Fixtures, Indexes. | (none assigned) | 2026-06-19 |
+| M2 | Repositories (in-memory first, Postgres second). Pre-implementation review pending. | (none assigned) | 2026-06-19 |
 
 ---
 
@@ -103,7 +99,6 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 
 | Milestone | Description |
 |---|---|
-| M2 | Repositories. |
 | M3 | API Skeleton. |
 | M4 | Audit Infrastructure. |
 | M5 | JWT Validation. |
@@ -142,6 +137,7 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 | 2026-06-19 | Dev compose image tag corrected: `paradedb/paradedb:pg17`. Investigation report `docs/AUDITS/INVESTIGATION_REPORT_M1_IMAGE.md`; finding F-21 closed; ADR-0002 paragraph amended in place. Production deployments pin by digest. |
 | 2026-06-19 | Dev compose healthcheck re-routed through `echo ... \| psql -tAX \| grep -q '^1$'` to dodge the YAML single-quote vs SQL single-quote collision. Finding F-22 closed; no schema, migration, or ADR changes required. |
 | 2026-06-19 | Dev compose host port remapped from 5432 to 55432 to avoid a host-resident Postgres collision. Diagnostic findings F-23 recorded; apply.sh unchanged; developer sets `SAGEWELL_DB_URL` to `localhost:55432`. |
+| 2026-06-19 | M1 closed. Engineering findings F-21 (image tag), F-22 (healthcheck quoting), and F-23 (host port) recorded as resolved; `docs/AUDITS/M1_VERIFICATION_REPORT.md` reaches PASSED; m1 verification report and remediation report closed. M2 begins after the user confirms the M2 pre-implementation questions. |
 
 ---
 
