@@ -41,6 +41,7 @@ Sagewell V1. Architecture decision records live in `docs/adr/`.
 | 2026-06-19 | Migration runners are portable. Apply sets `:fixtures_dir` via `psql -v`; rollback requires the explicit `SAGEWELL_ROLLBACK_CONFIRM=I_UNDERSTAND`. | `infrastructure/migrations/`, `docs/AUDITS/FINDINGS.md` |
 | 2026-06-19 | Dev compose uses `paradedb/paradedb:pg17`. The `pg_search` extension library ships inside the image; the schema migration activates it via `CREATE EXTENSION IF NOT EXISTS pg_search`. Overridable per environment but not pinned at the schema layer. Production deployments pin by digest. ADR-0002 paragraph updated to reflect the corrected tag. Closes M1 verification failure F-21. | `docker/compose.dev.yml`, `docs/adr/0002-pg-search-paradedb.md`, `docs/AUDITS/FINDINGS.md` |
 | 2026-06-19 | Dev compose healthcheck probes `pg_search` via `echo ... \| psql -tAX \| grep -q '^1$'`. Avoids YAML/shell single-quote escaping collisions that broke the previous inline `-c '... WHERE extname IN (''vector'', ''pg_search'');'` form. Closes M1 verification failure F-22. | `docker/compose.dev.yml`, `docs/AUDITS/FINDINGS.md` |
+| 2026-06-19 | Dev compose publishes host port 55432 (not 5432). The host machine commonly runs a Windows-native Postgres that owns port 5432; a host `psql` session then lands on the wrong server. The dev container's Postgres is reachable via `localhost:55432` after this fix. Closes M1 verification failure F-23. | `docker/compose.dev.yml`, `infrastructure/migrations/README.md`, `docs/AUDITS/FINDINGS.md` |
 
 ## Assumptions
 

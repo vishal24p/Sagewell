@@ -24,6 +24,13 @@
 # Stop:        docker compose -f docker/compose.dev.yml down
 # Reset:       docker compose -f docker/compose.dev.yml down -v
 #
+# Host port: 55432 (NOT 5432). The developer machine commonly runs a
+# Windows-native Postgres service that binds 5432; a host connection
+# to localhost:5432 lands on that service, NOT on this container, and
+# password authentication fails (different role/password namespace).
+# Hosts without a port collision can override by setting the first
+# port with the 55432:5432 mapping. See docs/AUDITS/FINDINGS.md F-23.
+#
 # Healthcheck waits for the Postgres TCP socket and for the
 # pg_search extension to be visible. Migrations are applied
 # separately by infrastructure/migrations/apply.sh so that the
@@ -47,7 +54,7 @@ services:
       POSTGRES_USER: sagewell
       POSTGRES_PASSWORD: sagewell_dev
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - sagewell_dev_data:/var/lib/postgresql/data
     healthcheck:

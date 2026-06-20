@@ -24,9 +24,18 @@ That compose ships a Postgres-based image with the ParadeDB
 `pg_search` extension pre-installed. Wait for the healthcheck
 to report `pg_search` is present.
 
+The dev compose publishes the container port on host **55432**
+to avoid a collision with the Windows-native Postgres service
+that commonly binds 5432 on developer machines. When the dev
+DB and a native Postgres share port 5432, a host psql session
+points at the wrong server and `password authentication failed`
+results even though the container's Postgres is correct. See
+`docs/AUDITS/FINDINGS.md` F-23.
+
 ## Apply
 
-Set `SAGEWELL_DB_URL` to your local connection URL. The runner
+Set `SAGEWELL_DB_URL` to a connection URL that points to the
+dev compose's published port (`localhost:55432`). The runner
 uses the canonical migrations tree. Run:
 
 ```bash

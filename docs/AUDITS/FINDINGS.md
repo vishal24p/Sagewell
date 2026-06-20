@@ -497,10 +497,126 @@ change. Compose-yaml-only fix.
 
 ---
 
+## F-23 — Host port collision: developer machine binds 5432 with Windows-native Postgres
+
+**Tag**: HIGH (blocks M1 verification Steps B onward)
+**Location**: `docker/compose.dev.yml`,
+`infrastructure/migrations/README.md`,
+`docs/AUDITS/M1_VERIFICATION_REPORT.md`.
+**Discovered during**: developer-side verification, after F-21 and F-22 fixes landed.
+
+**Finding**: After F-21 (image tag) and F-22 (healthcheck quoting)
+were corrected, the dev container started and reported healthy.
+The developer-side verification then attempted to run
+
+```
+psql "postgresql://sagewell:sagewell_dev@localhost:5432/sagewell"
+```
+
+and observed
+
+```
+FATAL: password authentication failed for user "sagewell"
+```
+
+The previous hypothesis at this stage was a stale role password
+(SCRAM/MD5 mismatch). Before applying any code, the diagnostic
+was repeated under controlled conditions:
+
+1. `docker exec sagewell-dev-postgres-1 psql -U sagwell -d sagwell -c '\dt'`
+   returned the V1 tables successfully. The container's Postgres
+   is healthy and the role exists.
+2. `docker exec ... psql -c "SELECT extname FROM pg_extension
+   WHERE extname IN ('vector', 'pg_search');"` returned both
+   `pg_search` and `vector`. The database is valid.
+3. `psql ...@localhost:5432` failed with the password error
+   even after the dev volume had been recreated, ruling out
+   the stale-volume theory (per developer confirmation).
+
+PowerShell's `Get-NetTCPConnection -LocalPort 5432` and
+`tasklist /FI "PID eq <PID>"` then resolved the conflict:
+
+```
+TCP    0.0.0.0:5432    0.0.0.0:0    LISTENING    5444    postgres.exe
+TCP    [::]:5432       [::]:0       LISTENING    13400   com.docker.backend.exe
+```
+
+PID 5444 is `postgres.exe` — a Windows-native Postgres service
+running on the host independently of Docker. PID 13400 is
+Docker Desktop's port-forwarding process. When the host's
+`psql` opens `localhost:5432`, Windows routes the TCP connection
+to PID 5444 first (the host-resident listener). Docker's bridge
+publishes PID 13400 *after* and is unreachable from the host's
+psql session because the OS already resolved the port to PID 5444.
+
+`ALTER USER sagwell PASSWORD 'sagewell_dev'` issued against the
+container would have changed the role password successfully
+inside the container, but **the developer's psql does not talk to
+that database at all** — it talks to the host-resident Postgres
+on PID 5444, which uses a different role namespace. The
+`ALTER USER` path therefore would not have fixed the symptom.
+
+The container's Postgres is therefore correct in itself; the
+issue is the host-published port colliding with the developer's
+Windows-native Postgres service.
+
+**Required fix**: re-publish the dev compose's host port to one
+that does not collide. Chosen port: **55432** (memorable; the
+"5" prefix signals "Sagewell dev").
+
+Changes:
+
+1. `docker/compose.dev.yml`:
+   - `ports` mapping is now `"55432:5432"` (was `"5432:5432"`).
+   - A header comment records the rationale and warns future
+     maintainers not to default to 5432 because Windows-native
+     Postgres commonly claims that port on developer machines.
+
+2. `infrastructure/migrations/README.md`:
+   - The "Apply" section now mentions `localhost:55432` and
+     explains why.
+   - A "Prerequisites" paragraph names the F-23 collision and
+     directs the developer to `docs/AUDITS/FINDINGS.md`.
+
+3. `docs/AUDITS/M1_VERIFICATION_REPORT.md`:
+   - Step A's preamble now references `localhost:55432` as the
+     correct host port.
+   - The report's "Findings" list absorbs this incident.
+
+`apply.sh` is unchanged. The architecture continues to be:
+Postgres in Docker, host `psql` connects, `apply.sh` targets the
+URL the developer sets. The only thing the developer now sets
+is the URL with port **55432** instead of 5432.
+
+**Status**: RESOLVED 2026-06-19. Once the developer updates
+`SAGEWELL_DB_URL` to use port 55432 (or applies the recipe
+verbatim), Steps B onward should run cleanly.
+
+Diagnostic commands the developer can run to confirm or rule
+out this finding on a given host:
+
+```
+# Find who is bound to 5432:
+Get-NetTCPConnection -LocalPort 5432 |
+    Select-Object LocalAddress, LocalPort, OwningProcess
+tasklist /FI "PID eq <OwningProcess>"
+```
+
+If the only listener is `com.docker.backend.exe` or `vpnkit.exe`,
+the dev compose's 5432 mapping would be reachable; the
+diagnosis reverts to "stale password". If the listener shows
+`postgres.exe`, the port collision is the root cause and the
+55432 mapping is the correct fix.
+
+**No ADR, no schema change, no migration change, no
+architecture change.** Compose-yaml-only.
+
+---
+
 ## Summary
 
 - Critical: 1 (F-21)
-- High: 6 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22)
+- High: 7 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22, F-23)
 - Medium: 6 (F-2, F-7, F-9, F-11, F-17, F-20)
 - Low: 9
 
@@ -511,6 +627,9 @@ follow-up row.
 
 F-22 was discovered during the F-21 re-verification pass. The fix
 is a single-file change to the compose healthcheck quoting.
+
+F-23 was discovered during the F-22 re-verification pass. The fix
+is a single-line change to the compose port mapping.
 
 The high-severity portability and schema-correctness findings
 (F-1, F-3, F-5, F-17) will be fixed in this remediation pass.

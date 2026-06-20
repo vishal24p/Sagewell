@@ -30,10 +30,19 @@ Wait for the healthcheck to report pg_search is present:
 docker compose -f docker/compose.dev.yml ps
 ```
 
-Document the host and port. The sandboxed environment here may
-expose the dev database on localhost:5432 (compose default) or
-the developer may need to override the 5432:5432 mapping in the
-compose file.
+Document the host and port. The dev compose publishes the
+container port on host **55432** (NOT 5432) to avoid a collision
+with the Windows-native Postgres service that commonly binds 5432
+on developer machines. The same Postgres image is not the host
+service: a host psql session on `localhost:5432` lands on the
+wrong Postgres and produces a `password authentication failed`
+error even though the container's Postgres is correct. See
+`docs/AUDITS/FINDINGS.md` F-23.
+
+A developer without that host-side collision can resolve the
+container via `localhost:55432` directly, or temporarily
+override the port mapping by exporting `COMPOSE_PORT_HOST=5432`
+before `docker compose up -d` (see compose header comments).
 
 ### B. Apply migrations
 

@@ -141,6 +141,7 @@ Full milestone list: `PROJECT_STATUS.md` (M0-M14).
 | 2026-06-19 | Engineering findings recorded in `docs/AUDITS/FINDINGS.md`; remediation report at `docs/AUDITS/M1_REMEDIATION_REPORT.md`; verification package at `docs/AUDITS/M1_VERIFICATION_REPORT.md` (status PENDING LOCAL EXECUTION). |
 | 2026-06-19 | Dev compose image tag corrected: `paradedb/paradedb:pg17`. Investigation report `docs/AUDITS/INVESTIGATION_REPORT_M1_IMAGE.md`; finding F-21 closed; ADR-0002 paragraph amended in place. Production deployments pin by digest. |
 | 2026-06-19 | Dev compose healthcheck re-routed through `echo ... \| psql -tAX \| grep -q '^1$'` to dodge the YAML single-quote vs SQL single-quote collision. Finding F-22 closed; no schema, migration, or ADR changes required. |
+| 2026-06-19 | Dev compose host port remapped from 5432 to 55432 to avoid a host-resident Postgres collision. Diagnostic findings F-23 recorded; apply.sh unchanged; developer sets `SAGEWELL_DB_URL` to `localhost:55432`. |
 
 ---
 

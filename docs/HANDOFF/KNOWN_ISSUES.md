@@ -200,6 +200,27 @@ For bugs, see the issue tracker. (Not yet created in this repo.)
   `docker/compose.dev.yml` warning future maintainers not to
   reintroduce the inline `(''vector'', ''pg_search'')` escape.
 
+## I-014 — Dev compose host port 5432 collision with Windows-native Postgres
+
+- **Context**: With `docker compose up -d` publishing host port 5432,
+  a host-resident `postgres.exe` on the developer machine (PID 5444,
+  confirmed by `tasklist`) and Docker Desktop's port-forwarding
+  process both bind 5432. Windows routes the host's psql session to
+  the listener that claimed the port first, which is the host's
+  postgres.exe. The container's Postgres is therefore unreachable
+  from `localhost:5432`, and `password authentication failed`
+  results even when the container's role password is correct.
+- **Why it must be resolved**: M1 verification Steps B onward
+  require the host's `psql` and `apply.sh` to reach the dev
+  container's Postgres via TCP.
+- **Proposed resolution**: dev compose publishes host port 55432
+  (was 5432). `apply.sh` is unchanged; the developer points
+  `SAGEWELL_DB_URL` at `localhost:55432`. README and verification
+  report updated. Diagnostic commands recorded in F-23.
+- **Status**: Resolved 2026-06-19. See `docs/AUDITS/FINDINGS.md`
+  F-23.
+- **Blocks**: M1 (now unblocked).
+
 ---
 
 ## Update Rule
@@ -219,3 +240,4 @@ with the resolution date and a brief description.
 | I-004 | Partial resolution. ADR-0002 (`docs/adr/0002-pg-search-paradedb.md`) pins the distribution to ParadeDB `pg_search`. Version pinning is intentionally left to deployment/infrastructure, not the schema. The M1 migration creates the extension with `IF NOT EXISTS`. The dev compose image tag is `paradedb/paradedb:pg17`; production pins by digest. | 2026-06-19 |
 | I-012 | Resolved. Dev compose now uses `paradedb/paradedb:pg17`. The previous `paradedb/paradedb:stable` reference was a non-existent tag; the M1 verification `docker compose up -d` step failed against it. ADR-0002 paragraph amended in place; investigation report at `docs/AUDITS/INVESTIGATION_REPORT_M1_IMAGE.md`. | 2026-06-19 |
 | I-013 | Resolved. Compose healthcheck SQL escaping (F-22) was colliding with the outer YAML single-quoted scalar. Reflowed via `echo ... \| psql -tAX \| grep -q '^1$'`. The probe returns green only after `001_extensions.up.sql` activates `pg_search`. | 2026-06-19 |
+| I-014 | Resolved. Dev compose host port remapped from 5432 to 55432 to avoid Windows-native Postgres collision (F-23). Host `psql ...@localhost:55432/sagewell` reaches the dev container; `apply.sh` is unchanged. | 2026-06-19 |
