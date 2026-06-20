@@ -38,8 +38,8 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M2 closed. M3 (API Skeleton / FastAPI, reduced scope) is
-closed. M4 (Audit Infrastructure) is the next milestone.**
+**M2 closed. M3 closed. M4 (Audit Infrastructure) is in
+progress.**
 
 M1 closed on 2026-06-19 after developer-side verification ran
 clean against the remediated code (F-21 image tag, F-22 healthcheck
@@ -58,11 +58,15 @@ exactly `GET /health`, `GET /openapi.json`, `GET /docs`,
 `GET /redoc`. The launch contract is
 `uvicorn src.api.app:create_app --factory`. The M3 package is
 a pure API skeleton, no DB, no JWT, no query-answer path, and
-no audit/correlation router. The package introduces D-020,
-D-021, D-024, D-025, D-026, D-027, and D-028. Findings F-29
-and F-30 surfaced during the M3 build and were mitigated
-inline (D-027 key rename to `exc_message`; Starlette 0.48
-`ServerErrorMiddleware` re-raise consumed by `BaseHTTPMiddleware`).
+no audit/correlation router.
+
+M4 (Audit Infrastructure) introduces the application layer's
+audit intake use case under `src/application/audit_event/`.
+M4 ships the use case only — no middleware, no test endpoint,
+and no automatic request-time audit writes. The launch
+contract stays DB-free until M5. Findings: F-29 and F-30 from
+M3 are reflected in upstream docs. The M4 implementation is in
+the working tree as of 2026-06-20 but not yet committed.
 
 Source of truth: `PROJECT_STATUS.md` M0-M14.
 
@@ -93,7 +97,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description | Owner | Started |
 |---|---|---|---|
-| (none) | M2 closed 2026-06-20 (`7849d89`); M3 closed 2026-06-20 (`fb110bd`); M4 (Audit Infrastructure) is up next. | (none assigned) | (not started) |
+| M4 | Audit Infrastructure. `src/application/audit_event/` introduced; `RecordAuditEvent` use case parametrized over the in-memory adapter; launches DB-free; 10 distinct tests passing. Pending single-commit closure and `M4_REPORT.md`. | (none assigned) | 2026-06-20 |
 
 ---
 

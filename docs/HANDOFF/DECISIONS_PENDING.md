@@ -260,6 +260,66 @@ decision. When it is rejected, archive it in this file under
   `api -> workflow`. M3 ships with zero such imports; future
   imports run through it.
 
+### D-029 — M4 audit intake surface
+
+- **Decision (Approved 2026-06-20)**: M4 ships the **application
+  use case only**. No middleware. No test endpoint. Build the
+  application layer cleanly; stop on architectural ambiguity.
+
+### D-030 — M4 reason-codes expansion
+
+- **Decision (Approved 2026-06-20)**: `src/domain/ports/reason_codes.py`
+  is unchanged at M4. Only the seven M0 IMM codes are emitted.
+  I-001 stays open for the milestone that introduces the wider
+  enumeration with real usage context.
+
+### D-031 — M4 dependency-injection shape
+
+- **Decision (Approved 2026-06-20)**: `create_app` accepts
+  `audit_repo` as an optional keyword; `__main__.py` owns
+  pool construction. The factory does NOT construct a pool,
+  does NOT touch `SAGEWELL_DB_URL`, does NOT import asyncpg.
+
+### D-032 — M4 request-time audit writes
+
+- **Decision (Approved 2026-06-20)**: No automatic audit writes
+  during requests at M4. The launch contract stays DB-free until
+  M5. The audit writer is exercised via tests; future M5+
+  consumers invoke it.
+
+### D-033 — `AUDIT_HISTORY.md` row 16 shape
+
+- **Decision (Approved 2026-06-20)**: row 16 is updated (not split)
+  to include the M3 docs-alignment commit `debe101` and the
+  second push landing. Audit history stays milestone-focused.
+
+### D-034 — `src/api/__init__.py` docstring at M4
+
+- **Decision (Approved 2026-06-20)**: the M3 docstring is
+  unchanged at M4. The seam is purely via `create_app`'s
+  optional `audit_repo` parameter; no new in-docstring
+  cross-layer language is added.
+
+### D-035 — `create_app` signature lock (no `pool` parameter)
+
+- **Decision (Approved 2026-06-20)**: `create_app` keeps exactly
+  the `audit_repo` parameter; no `pool` parameter is introduced.
+  `__main__.py` owns pool construction. Even `TYPE_CHECKING`-
+  gated asyncpg references do not belong at the M4 factory.
+
+### D-036 — Two-error split at M4
+
+- **Decision (Approved 2026-06-20)**: split kept — `AuditEventError`
+  is the base; `PersistenceFailure(AuditEventError)` is the
+  specific failure signal. Validation and persistence failures
+  are different categories.
+
+### D-037 — Implementation sign-off for M4
+
+- **Decision (Approved 2026-06-20)**: proceed with M4
+  implementation. The plan and method-signature plan were
+  approved at this turn; land code now.
+
 ---
 
 ## Approved
@@ -320,6 +380,48 @@ decision. When it is rejected, archive it in this file under
 
 - **Rule**: `src/api/` does not import future workflow,
   retrieval, or generation. `workflow -> api`.
+
+### D-029 — M4 audit intake surface (Approved 2026-06-20)
+
+- **Surface**: application use case only. No middleware.
+  No test endpoint.
+
+### D-030 — M4 reason-codes expansion (Approved 2026-06-20)
+
+- **Codeset**: unchanged at M4. Only seven M0 IMM codes emitted.
+
+### D-031 — Dependency-injection shape (Approved 2026-06-20)
+
+- **Shape**: `create_app(audit_repo=None)`. `__main__.py`
+  owns pool construction. No asyncpg in the api layer.
+
+### D-032 — M4 request-time audit writes (Approved 2026-06-20)
+
+- **Behavior**: launch contract stays DB-free. No automatic
+  audit writes during requests at M4. Writer is exercised
+  through tests.
+
+### D-033 — AUDIT_HISTORY.md row 16 (Approved 2026-06-20)
+
+- **Shape**: row 16 edited (not split). Includes the M3
+  docs-alignment commit `debe101`.
+
+### D-034 — src/api/__init__.py docstring (Approved 2026-06-20)
+
+- **Status**: unchanged at M4. Docstring still describes the
+  M3 boundary terms; the M4 seam lives in `app.py`'s
+  optional parameter.
+
+### D-035 — create_app signature lock (Approved 2026-06-20)
+
+- **Signature**: `audit_repo` parameter only. No `pool`
+  parameter. Even TYPE_CHECKING asyncpg references do
+  not belong at the M4 factory.
+
+### D-036 — Two-error split (Approved 2026-06-20)
+
+- **Errors**: `AuditEventError` (base),
+  `PersistenceFailure(AuditEventError)` (specific).
 
 ---
 

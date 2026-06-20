@@ -81,15 +81,35 @@ Errors return the canonical V1 envelope:
 
 - None. Bring-up runs without `SAGEWELL_DB_URL`.
 
+## M4 — Audit Intake (DB-free at launch)
+
+M4 introduces the application-layer audit use case
+(`src/application/audit_event/`) but does NOT couple the
+launch to a database. `create_app(audit_repo=None)` produces
+a DB-free instance; the audit writer is exercised through
+tests only. Future milestones (M5+) introduce the runtime
+pool construction inside the `__main__.py` of that milestone.
+
+The factory accepts the seam:
+
+```python
+create_app(*, audit_repo: AuditLogRepository | None = None)
+```
+
+The seam is optional and unused for the launch contract at M4.
+
 ## Input This Layer Does NOT Consume
 
 - `SAGEWELL_DB_URL` — owned by a future Postgres lifespan hook.
 - `SAGEWELL_CORS_ALLOWED_ORIGINS` — out of M3.
 - `SAGEWELL_TRUSTED_PROXY_HEADER` — out of M3.
 - JWT / auth secret settings — owned by M5.
+- The `audit_repo` parameter on `create_app` is a DI seam; M4
+  launch does not pass it.
 
 ## Test Surface
 
 ```bash
 .venv\Scripts\python.exe -m pytest -q tests/api
+.venv\Scripts\python.exe -m pytest -q tests/application
 ```

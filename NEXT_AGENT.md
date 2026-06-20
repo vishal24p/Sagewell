@@ -12,26 +12,33 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M4 — Audit Infrastructure.**
+**M4 — Audit Infrastructure (in progress, pre-commit).**
 
 ## Current Status
 
 **M0 closed on 2026-06-19 (commit `a78e21c`). M1 closed on
 2026-06-19. M2 closed on `main` at `7849d89`. M3 closed on
-`main` at `fb110bd` (pushed to `origin/main`).**
+`main` at `fb110bd` (pushed to `origin/main`). M4 implementation
+is complete in the working tree as of 2026-06-20; pending the
+single-commit closure and `M4_REPORT.md`.**
 
-The M3 silhouette is the pure API skeleton per the user's
-reduced-scope decision:
+M3 silhouette is the pure API skeleton per the user's reduced
+decision (`GET /health`, `GET /openapi.json`, `GET /docs`,
+`GET /redoc`).
 
-- `GET /health`
-- `GET /openapi.json`
-- `GET /docs`
-- `GET /redoc`
+M4 silhouette:
 
-**DB-NOTES**: `src/api/` does **not** import any DB driver
-(`grep -rE "asyncpg|psycopg|sqlalchemy" src/api/` returns zero
-rows). Future correlation router, audit writer, JWT validator,
-and query-answer workflow all live in later milestones.
+- `src/application/audit_event/` package with
+  `RecordAuditEvent` use case, `RecordAuditCommand` DTO,
+  `AuditEventId` newtype, `Clock` Protocol + `SystemClock`,
+  `AuditEventError` / `PersistenceFailure(AuditEventError)`.
+- 10 distinct passing tests at
+  `tests/application/audit_event/test_record_audit_event.py`.
+- `src/api/app.py` accepts `audit_repo: Optional[AuditLogRepository]
+  = None` (DI seam); `__main__.py` does NOT construct a pool.
+- Launch contract `uvicorn src.api.app:create_app --factory`
+  remains DB-free.
+- Combined pytest: 54 passed, 52 sandbox-skips, 0 failed.
 
 ---
 
@@ -153,4 +160,21 @@ The M0..M2 lists still apply unless resolved. M3 introduces:
   module under `src/api/`. The pattern is the inverted
   one: the api package depends on the workflow package,
   not the other way around.
+- D-029 (M4 audit intake surface): application use case
+  only; no middleware; no test endpoint.
+- D-030 (Reason-code expansion): unchanged at M4.
+  I-001 stays open.
+- D-031 (DI shape): `create_app(*, audit_repo=None)`.
+  `__main__.py` owns pool construction.
+- D-032 (Request-time audit writes): no automatic audit
+  writes at M4. Launch contract stays DB-free until M5.
+- D-033 (AUDIT_HISTORY row 16): edited (not split) to
+  capture the late-state alignment commits.
+- D-034 (M3 docstring at M4): unchanged.
+- D-035 (create_app signature): `audit_repo` only; no
+  `pool` parameter, no TYPE_CHECKING asyncpg.
+- D-036 (Two-error split): `AuditEventError` and
+  `PersistenceFailure(AuditEventError)` both kept.
+- D-037 (M4 implementation sign-off): approved at this
+  turn; landing code on main.
  
