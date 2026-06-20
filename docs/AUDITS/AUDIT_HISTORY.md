@@ -16,6 +16,10 @@ repository. Each entry lists date, scope, method, and outcome.
 | 7 | 2026-06-19 | M1 Step A failure: healthcheck escaping | dev compose healthcheck | F-22 resolved: `echo ... \| psql -tAX \| grep -q '^1$'` |
 | 8 | 2026-06-19 | M1 Step B failure: host port collision | dev compose port mapping | F-23 resolved: 55432:5432 |
 | 9 | 2026-06-19 | M1 closure | M1 review across findings F-21, F-22, F-23, all five HIGH gates, and the verification report status | M1 closed; report at `docs/AUDITS/M1_VERIFICATION_REPORT.md` (status PASSED) |
+| 10 | 2026-06-20 | M2 architecture review | ports layer, in-memory and Postgres adapters, parity tests, RBAC suite preservation | review at this turn; findings produced `src/domain/ports/` value objects plus Protocols; ports layer co-located with entities |
+| 11 | 2026-06-20 | M2 implementation | `src/infrastructure/repositories/{in_memory,postgres}/`, `tests/infrastructure/repositories/`, `pyproject.toml` dependency additions | RBAC Access Outcome Suite still 31/31; Postgres parity 52 skipped (sandbox cannot reach dev compose); M2 deliverable recorded at `docs/AUDITS/M2_REPORT.md` (initial) |
+| 12 | 2026-06-20 | M2 developer-side parity run | ran pytest against `localhost:55432`; surfaced RC-1 (`SubRequest.param`), RC-2 (session-scoped pool under per-test loops), RC-3 (adversarial documents test) | F-24, F-25, F-26 recorded as RESOLVED; conftest and adversarial test reconciled via Re-1..Re-3 |
+| 13 | 2026-06-20 | M2 parity re-run | applied F-27 (FK parent seed fixture) and F-28 (adversarial `Suite` test rewrite + production-side `isinstance(Suite)` validator hardening in both adapters) | M2 status flipped to Closed: 50 repository tests passed (in-memory + Postgres), 2 by-design skips, 0 failures, 0 errors; combined pytest 81 passed, 2 skipped |
 
 ## Audit Process
 

@@ -12,33 +12,57 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M2 — Repositories.**
+**M2 — Repository Layer.**
 
 ## Current Status
 
-**M1 closed. M2 not yet started; pre-implementation questions pending.**
+**M1 closed on 2026-06-19. M2 implementation complete in working
+tree as of 2026-06-20. M2 status: Implemented, Verified Ready
+pending developer-side Postgres parity.**
 
-M0 closed on 2026-06-19 (commit `a78e21c`). M1 was Implemented,
-Remediated, and Verified during the developer-side verification
-run on 2026-06-19 with the F-21 (image tag), F-22 (healthcheck
-escaping), and F-23 (host port collision) fixes landing as
-commits `dc21743`, `bc8f257`, and `34a1252`. M1 closed on
-2026-06-19. M2 has not begun; the assistant is waiting on the
-user's confirmation of the M2 pre-implementation questions in
-`docs/HANDOFF/DECISIONS_PENDING.md` before touching code.
+M0 closed on 2026-06-19 (commit `a78e21c`). M1 closed on
+2026-06-19 (commits `0947558`, `dc21743`, `bc8f257`, `34a1252`,
+`38a1efa`, `38a1efa`). M2 implementation is not yet committed as
+of `LAST_UPDATED`.
+
+Repository ports at `src/domain/ports/`. Adapters at
+`src/infrastructure/repositories/{in_memory,postgres}/`. Parity
+tests at `tests/infrastructure/repositories/`. RBAC Access
+Outcome Suite still 31/31 green.
+
+M3 (API Skeleton) does not begin until M2 is Closed.
 
 ---
 
 ## Next Task
 
-Build the V1 repository layer: a port-oriented set of interfaces in
-`src/domain/ports/` (or equivalent) plus an in-memory adapter for
-each port. The architecture separates `domain` (pure Python; no
-framework imports) from `infrastructure` (Postgres, adapters).
-Every repository operation used by later phases — JWT actor
-loading (M5), audit writer (M4), retrieval (M8), ingestion (M7),
-evaluation (M13) — has a passing test against the in-memory
-adapter. A Postgres adapter is added in the second half of M2.
+Close M2 once developer-side Postgres parity is verified; or, if
+the working tree already passes, commit M2 and run the
+developer-side parity. The Postgres half is the only remaining
+verification: a developer or CI run exports
+`SAGEWELL_DB_URL` set to the dev-compose Postgres URL (see
+`infrastructure/migrations/README.md` and `docker/compose.dev.yml`;
+credentials are local-dev only and should never be committed)
+with the M1 migrations applied, then runs the parity suite. The
+52 currently-skipped Postgres tests must turn green.
+
+If new findings emerge during that run, surface them through
+`docs/AUDITS/FINDINGS.md` with a fresh F-Id and remediate before
+declaring M2 Closed.
+
+When M2 is Closed:
+
+1. Update `NEXT_AGENT.md` (this file) to point at M3.
+2. Update `docs/HANDOFF/CURRENT_STATE.md` "Current Milestone":
+   M2 → M3.
+3. Append a row to `MEMORY.md` summarizing the closure.
+4. Append `Verified Ready`+`Verified` rows to
+   `docs/AUDITS/MILESTONE_GATES.md`.
+5. Append audit history rows to
+   `docs/AUDITS/AUDIT_HISTORY.md`.
+6. Update `PROJECT_STATUS.md` M2 row status (Closed).
+7. Then start the M3 pre-implementation review per
+   `skills/project/api_skeleton/SKILL.md`.
 
 ### Task definition
 

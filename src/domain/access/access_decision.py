@@ -1,7 +1,9 @@
 from typing import Tuple
 
-from .clearances import Clearance
-from .models import Document, User
+from ..ports.clearances import Clearance
+from ..ports.users import UserProjection as User
+from ..ports.documents import DocumentProjection as Document
+
 
 # Result is always a tuple. Never raise as an authorization outcome.
 # Fail-closed: any missing input yields (False, reason).

@@ -1,6 +1,6 @@
 # Current State
 
-**Last updated**: 2026-06-19
+**Last updated**: 2026-06-20
 
 This file is a snapshot of repository progress. It is operational,
 not authoritative. For architecture, see `ARCHITECTURE.md`. For the
@@ -38,12 +38,18 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M2 — Repositories.**
+**M2 closed. M3 (API Skeleton / FastAPI) is the next milestone.**
 
 M1 closed on 2026-06-19 after developer-side verification ran
 clean against the remediated code (F-21 image tag, F-22 healthcheck
-escaping, F-23 host port). M2 has not yet begun; a
-pre-implementation review is being readied for the user.
+escaping, F-23 host port). M2 implementation committed on the
+2026-06-20 developer-side Postgres parity run: ports layer at
+`src/domain/ports/`, in-memory and Postgres adapters under
+`src/infrastructure/repositories/`, parity tests at
+`tests/infrastructure/repositories/`. The M0 RBAC Access Outcome
+Suite still 31/31 green; combined pytest reports 81 passed and
+2 by-design skips. Findings F-24..F-28 surfaced during the
+parity run and were fixed before closure.
 
 Source of truth: `PROJECT_STATUS.md` M0-M14.
 
@@ -55,6 +61,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 |---|---|---|
 | M0 | Access Decision (pure) and RBAC Access Outcome Suite. | 2026-06-19 |
 | M1 | Schema, Migrations, Fixtures, Indexes. Verified via the F-21 (image tag), F-22 (healthcheck escaping), and F-23 (host port) remedies. | 2026-06-19 |
+| M2 | Repositories (ports + in-memory + Postgres adapters + parity tests). Developer-side Postgres parity verified on `localhost:55432`. F-24..F-28 surfaced and resolved during the parity run. | 2026-06-20 |
 
 ### Completed In Documentation
 
@@ -82,7 +89,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description | Owner | Started |
 |---|---|---|---|
-| M2 | Repositories (in-memory first, Postgres second). Pre-implementation review pending. | (none assigned) | 2026-06-19 |
+| (none) | M2 closed 2026-06-20; M3 (API Skeleton) is up next. | (none assigned) | (not started) |
 
 ---
 
@@ -92,6 +99,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 |---|---|
 | 2026-06-19 | M0 — Access Decision (pure) implemented as `src/domain/access/` with `Clearance` enum, `User`/`Document` value types, and `decide(user, document) -> (allowed, reason)`. RBAC Access Outcome Suite placed at `tests/rbac/test_access_decision.py` (31/31 passing). Function is pure: no framework imports, no database calls. Missing authorization inputs fail closed with explicit reason codes. Role-regression test confirms `users.role` does not influence the decision. |
 | 2026-06-19 | M1 — Schema, Migrations, Fixtures, Indexes authored (unverified from the sandbox). Docker compose at `docker/compose.dev.yml` brings up Postgres + ParadeDB `pg_search`. Migrations `001_extensions`, `002_schema`, `003_indexes`, `004_fixtures` are reversible SQL pairs under `migrations/`. Fixtures are SQL under `db/fixtures/` and use a `fixture-` prefix and `source_system='fixture'` so rollback does not touch real data. Apply and rollback run via `infrastructure/migrations/{apply,rollback}.sh`. ADRs `0002-pg-search-paradedb.md` and `0003-raw-sql-migrations.md` capture the M1 decisions. Verification requires a Postgres reachable from a developer environment; the sandbox does not run Docker. |
+| 2026-06-20 | M2 — Repositories (ports + in-memory + Postgres adapters + parity tests) implemented and developer-side verified on `localhost:55432`. RBAC Access Outcome Suite remains 31/31 green. Combined pytest: 81 passed, 2 by-design skips, 0 failed, 0 errors. Findings F-24..F-28 surfaced and resolved during the parity run. M2 status flips from `Implemented, Verified Ready` to `Closed`. |
 
 ---
 
@@ -138,6 +146,13 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | 2026-06-19 | Dev compose healthcheck re-routed through `echo ... \| psql -tAX \| grep -q '^1$'` to dodge the YAML single-quote vs SQL single-quote collision. Finding F-22 closed; no schema, migration, or ADR changes required. |
 | 2026-06-19 | Dev compose host port remapped from 5432 to 55432 to avoid a host-resident Postgres collision. Diagnostic findings F-23 recorded; apply.sh unchanged; developer sets `SAGEWELL_DB_URL` to `localhost:55432`. |
 | 2026-06-19 | M1 closed. Engineering findings F-21 (image tag), F-22 (healthcheck quoting), and F-23 (host port) recorded as resolved; `docs/AUDITS/M1_VERIFICATION_REPORT.md` reaches PASSED; m1 verification report and remediation report closed. M2 begins after the user confirms the M2 pre-implementation questions. |
+| 2026-06-20 | M2 ports layer at `src/domain/ports/`. Value objects plus Protocols for `User`, `Document`, `Chunk`, `AuditEvent`, `RetrievalLog`, `EvaluationResult`. The M0 RBAC suite imports from ports; no shim. |
+| 2026-06-20 | M2 driver stack: `asyncpg>=0.30,<0.32`, `pgvector>=0.3,<0.5`, `pytest-asyncio>=0.23,<2.0`. pgvector codec via `pgvector.asyncpg.register_vector` (NOT a package named `asyncpg-pgvector`; that name is not on PyPI). JSONB codec also registered. |
+| 2026-06-20 | M2 test isolation: per-test `TRUNCATE ... RESTART IDENTITY CASCADE` in `clean_postgres_state` fixture. Postgres tests skip when `SAGEWELL_DB_URL` is unset/unreachable. After the F-25 / F-24 fixes, `postgres_pool` is function-scoped to bind cleanly to the per-test event loop, and `seed_parent_rows` covers the FK parent gap. |
+| 2026-06-20 | M2 SQL-level filters never combine department + clearance. Status/id/source only. The compound decision remains the access-decision pure function's responsibility. |
+| 2026-06-20 | EvaluationResultRepository validators (`in_memory/evaluation_results.py`, `postgres/evaluation_results.py`) hardened after F-28 surfaced a `TypeError` from `raw_string not in EnumType`. Both now check `isinstance(result.suite, Suite) and result.suite.value in {member.value for member in Suite}` and raise `PersistenceError` uniformly. |
+| 2026-06-20 | M2 closed. Developer-side parity run on `localhost:55432` reported 50/52 repository tests passed (2 by-design skips, 0 failed, 0 errors), and combined pytest 81 passed / 2 skipped. M3 (API Skeleton) is the next milestone. |
+| 2026-06-20 | AuditLogRepository enforces the seven M0 IMM reason codes at append time. Other strings rejected with `PersistenceError`. |
 
 ---
 

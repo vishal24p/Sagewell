@@ -18,8 +18,9 @@ not answer strings.
 import pytest
 
 from src.domain.access.access_decision import Reason, decide
-from src.domain.access.clearances import Clearance
-from src.domain.access.models import Document, User
+from src.domain.ports.clearances import Clearance
+from src.domain.ports.documents import DocumentProjection as Document
+from src.domain.ports.users import UserProjection as User
 
 
 # Sample departments used across cases.

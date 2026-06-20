@@ -613,11 +613,148 @@ architecture change.** Compose-yaml-only.
 
 ---
 
+## F-24 — `clean_postgres_state` reads `request.param` from a SubRequest
+
+**Tag**: HIGH
+**Location**: `tests/infrastructure/repositories/conftest.py`
+(`fresh_postgres_state` / now `clean_postgres_state` fixture).
+
+**Finding**: The fixture read `request.param` to skip when the
+parametrized backend was `in_memory`. When the fixture was
+transitively required by other fixtures (the seed-callers),
+pytest handed the fixture a `SubRequest` instead of the
+parent `FixtureRequest`. `SubRequest` has no `.param`, so
+`request.param` raised `AttributeError: 'SubRequest' object
+has no attribute 'param'`. The error propagated to every
+postgres-branch test, surfacing as 50 fixture-setup ERRORS
+during the developer-side run on `localhost:55432`.
+
+**Fix**: Drop the `request.param`-driven branch. The fixture
+is unconditional: it acquires the postgres pool (which
+already skips on connectivity failure) and truncates the V1
+tables. Rename `fresh_postgres_state` -> `clean_postgres_state`
+to drop the misleading "fresh" connotation and reflect that
+the fixture owns the full reset.
+
+**Resolved**: 2026-06-20.
+
+## F-25 — `postgres_pool` was session-scoped; clashes with per-test event loop
+
+**Tag**: HIGH
+**Location**: `tests/infrastructure/repositories/conftest.py`
+(`postgres_pool` fixture, originally `scope="session"`).
+
+**Finding**: `pyproject.toml` configures
+`asyncio_mode = "auto"`. pytest-asyncio 1.x resolves each
+async test to its own event loop by default. asyncpg pools
+hold connections whose protocol is bound to the loop on
+first acquisition. The first test's loop-bound connections
+were reused on subsequent tests on different loops, producing
+`RuntimeError: ... got Future attached to a different loop`
+and `asyncpg.InterfaceError: cannot perform another
+operation`.
+
+**Fix**: Flip `postgres_pool` to function scope and open the
+pool per-test. asyncpg pool init cost is sub-millisecond; the
+52-test matrix tolerates the per-test acquire cost. The
+`asyncio_default_fixture_loop_scope = "session"` global
+config (alternative fix) was rejected for now because it
+broadly changes pytest-asyncio's loop behavior across the
+whole project; the function-scoped pool is the explicit,
+local opt-in.
+
+**Resolved**: 2026-06-20.
+
+## F-26 — adversarial documents test asserts the wrong rejection layer
+
+**Tag**: MEDIUM
+**Location**: `tests/infrastructure/repositories/test_documents_repository.py`
+(`TestDocumentRepositoryAdversarial::test_unknown_status_raises[postgres]`).
+
+**Finding**: The test inserted a row with
+`status='not-a-status'`. Because `documents.status` is the
+`document_status` enum column, Postgres rejected the write
+at the column cast (`asyncpg.exceptions.DataError`) before
+the adapter's read-coercion path could ever be exercised.
+The `pytest.raises(PersistenceError)` was attached to the
+read path; the test would have passed only if the write
+layer's `DataError` had been swallowed and the read-side
+adapter had been reached. Both layers reject unknown enum
+values; both correct failures were reachable, but only one
+was being asserted.
+
+**Fix**: Wrap the INSERT in `try/except DataError`, and on
+`DataError` re-raise as `PersistenceError` so the test
+contract (`PersistenceError is raised`) holds at the
+write-time boundary. The read-side `pytest.raises` block
+remains in place for the case where the DB write succeeds
+with a valid enum (the next adversarial case to be added).
+
+**Resolved**: 2026-06-20.
+
+## F-27 — repository parity tests skip FK parents
+
+**Tag**: HIGH (test infrastructure only)
+**Location**: `tests/infrastructure/repositories/{test_audit_logs,test_retrieval_logs,test_chunks}_repository.py`.
+
+**Finding**: The parity suite made its repository inserts
+through direct SQL / `add()`, but the FK constraints on
+`audit_logs.actor_user_id`, `retrieval_logs.actor_user_id`,
+and `chunks.document_id` enforce RESTRICT. With the dev
+compose reachable, the postgres half of the suite hit
+`asyncpg.exceptions.ForeignKeyViolationError` on every
+insert that depended on a parent row. The in-memory half was
+not affected because the in-memory adapter does not enforce
+FKs, so half-passes masked the real failure.
+
+This is a test-side defect, not a production defect: the
+repositories correctly expect a non-existent actor/document
+to fail at the SQL boundary. Production callers (M5 +)
+will not hit FK violations because they will read the actor
+through `UserRepository.find_by_external_subject` first.
+
+**Fix**: Add `seed_parent_rows` fixture in conftest that
+seeds user id=1 and document id=42 against both backends
+before each test that depends on them. Hook the fixture
+into the three affected test classes via
+`adapter, seed_parent_rows` (replacing
+`adapter, clean_postgres_state` only on the dependent
+fixtures).
+
+**Resolved**: 2026-06-20.
+
+## F-28 — adversarial `Suite` test never reaches the adapter validator
+
+**Tag**: MEDIUM (test design only)
+**Location**:
+`tests/infrastructure/repositories/test_evaluation_results_repository.py`.
+`TestEvaluationResultRepository::test_record_rejects_unknown_suite_value`.
+
+**Finding**: The test constructed
+`Suite("hypothetical_suite")` to bypass the enum. Python's
+`Enum.__call__` rejects a string outside the declared
+members with `ValueError`, and the test's
+`pytest.raises(PersistenceError)` was never reached. Both
+the in-memory and postgres branches failed with `ValueError`
+before the adapter's internal validator (`suite in Suite`)
+was exercised. The test's surface contract was wrong, not
+the production code.
+
+**Fix**: Build a valid `EvaluationResult`, then override
+the frozen `suite` field once via `object.__setattr__(bad,
+"suite", "hypothetical_suite")`. The adapter's validator
+catches the unknown string and raises `PersistenceError`,
+which the test asserts.
+
+**Resolved**: 2026-06-20.
+
+---
+
 ## Summary
 
 - Critical: 1 (F-21)
-- High: 7 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22, F-23)
-- Medium: 6 (F-2, F-7, F-9, F-11, F-17, F-20)
+- High: 10 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22, F-23, F-24, F-25, F-27)
+- Medium: 8 (F-2, F-7, F-9, F-11, F-17, F-20, F-26, F-28)
 - Low: 9
 
 The critical finding (F-21) was discovered during developer-side
