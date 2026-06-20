@@ -38,7 +38,8 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M2 closed. M3 (API Skeleton / FastAPI, reduced scope) is in progress.**
+**M2 closed. M3 (API Skeleton / FastAPI, reduced scope) is
+closed. M4 (Audit Infrastructure) is the next milestone.**
 
 M1 closed on 2026-06-19 after developer-side verification ran
 clean against the remediated code (F-21 image tag, F-22 healthcheck
@@ -51,13 +52,17 @@ Suite still 31/31 green; combined pytest reports 81 passed and
 2 by-design skips. Findings F-24..F-28 surfaced during the
 parity run and were fixed before closure.
 
-M3 implementation is complete in the working tree as of
-2026-06-20: `src/api/` package, settings/error envelope/correlation
-middleware/health router, OpenAPI surface at `/openapi.json`,
-`/docs`, `/redoc`. The launch contract is
-`uvicorn src.api.app:create_app --factory`. M3 ships no DB
-dependency, no JWT/auth, no query-answer path, and no audit
-correlation router.
+M3 implementation is complete and committed on 2026-06-20 at
+`fb110bd` (pushed to `origin/main`). The route surface is
+exactly `GET /health`, `GET /openapi.json`, `GET /docs`,
+`GET /redoc`. The launch contract is
+`uvicorn src.api.app:create_app --factory`. The M3 package is
+a pure API skeleton, no DB, no JWT, no query-answer path, and
+no audit/correlation router. The package introduces D-020,
+D-021, D-024, D-025, D-026, D-027, and D-028. Findings F-29
+and F-30 surfaced during the M3 build and were mitigated
+inline (D-027 key rename to `exc_message`; Starlette 0.48
+`ServerErrorMiddleware` re-raise consumed by `BaseHTTPMiddleware`).
 
 Source of truth: `PROJECT_STATUS.md` M0-M14.
 
@@ -97,7 +102,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description | Owner | Started |
 |---|---|---|---|
-| M3 | API Skeleton. Working tree complete; pending single-commit closure and M3_REPORT.md. | (none assigned) | 2026-06-20 |
+| (none) | M2 closed 2026-06-20 (`7849d89`); M3 closed 2026-06-20 (`fb110bd`); M4 (Audit Infrastructure) is up next. | (none assigned) | (not started) |
 
 ---
 
@@ -108,7 +113,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | 2026-06-19 | M0 — Access Decision (pure) implemented as `src/domain/access/` with `Clearance` enum, `User`/`Document` value types, and `decide(user, document) -> (allowed, reason)`. RBAC Access Outcome Suite placed at `tests/rbac/test_access_decision.py` (31/31 passing). Function is pure: no framework imports, no database calls. Missing authorization inputs fail closed with explicit reason codes. Role-regression test confirms `users.role` does not influence the decision. |
 | 2026-06-19 | M1 — Schema, Migrations, Fixtures, Indexes authored (unverified from the sandbox). Docker compose at `docker/compose.dev.yml` brings up Postgres + ParadeDB `pg_search`. Migrations `001_extensions`, `002_schema`, `003_indexes`, `004_fixtures` are reversible SQL pairs under `migrations/`. Fixtures are SQL under `db/fixtures/` and use a `fixture-` prefix and `source_system='fixture'` so rollback does not touch real data. Apply and rollback run via `infrastructure/migrations/{apply,rollback}.sh`. ADRs `0002-pg-search-paradedb.md` and `0003-raw-sql-migrations.md` capture the M1 decisions. Verification requires a Postgres reachable from a developer environment; the sandbox does not run Docker. |
 | 2026-06-20 | M2 — Repositories (ports + in-memory + Postgres adapters + parity tests) implemented and developer-side verified on `localhost:55432`. RBAC Access Outcome Suite remains 31/31 green. Combined pytest: 81 passed, 2 by-design skips, 0 failed, 0 errors. Findings F-24..F-28 surfaced and resolved during the parity run. M2 status flips from `Implemented, Verified Ready` to `Closed`. |
-| 2026-06-20 | M3 — API Skeleton (reduced scope) implemented. `src/api/app.py` exports `create_app()` factory; routes are exactly `/health`, `/openapi.json`, `/docs`, `/redoc`. Launch contract: `uvicorn src.api.app:create_app --factory`. No DB, no JWT, no query-answer stub. The catch-all error middleware logs `correlation_id`, `exception_type`, and `exc_message` (the third key is deliberately spelled `exc_message` to avoid colliding with the std-lib `LogRecord` reserved `message` field). `tests/api/` lands 13 distinct passing tests. Combined pytest: 44 passed in the run that touched all three suites individually, M0 still 31/31, M2 dev-compose half skips. Awaiting single-commit closure and M3_REPORT.md. |
+| 2026-06-20 | M3 — API Skeleton (reduced scope) implemented and committed at `fb110bd` on `main` (pushed to `origin/main`). `src/api/app.py` exports `create_app()` factory; routes are exactly `/health`, `/openapi.json`, `/docs`, `/redoc`. Launch contract: `uvicorn src.api.app:create_app --factory`. No DB, no JWT, no query-answer stub. The catch-all error middleware logs `correlation_id`, `exception_type`, and `exc_message` (the third key is deliberately spelled `exc_message` to avoid colliding with the std-lib `LogRecord` reserved `message` field). `tests/api/` lands 13 distinct passing tests. Combined pytest: 44 passed across `tests/api`+`tests/rbac` and 52 sandbox-skips total from the Postgres dev-compose tests; M0 RBAC suite still 31/31 green. F-29 and F-30 surfaced and resolved during the M3 implementation. Closure record at `docs/AUDITS/M3_REPORT.md`. |
 
 ---
 

@@ -748,13 +748,64 @@ which the test asserts.
 
 **Resolved**: 2026-06-20.
 
+## F-29 - M3 catch-all log key collides with `LogRecord` reserved field
+
+**Tag**: MEDIUM (D-027 implementation drift)
+**Location**: `src/api/errors/__init__.py`.
+`catch_all_exception_handler` (later folded into the
+`BaseHTTPMiddleware` in M3).
+
+**Finding**: The D-027 mandate specified three log keys:
+`correlation_id`, `exception_type`, `message`. Implementing
+the handler with `logger.error("api.unhandled_exception",
+extra={"correlation_id": cid, "exception_type":
+type(exc).__name__, "message": str(exc)})` raised
+`KeyError("Attempt to overwrite 'message' in LogRecord")`
+at runtime when the catch-all fired. The std-lib
+`LogRecord.__init__` rejects `extra` keys that collide
+with its reserved fields (`message`, `asctime`, etc.).
+
+**Fix**: Renamed the third key from `message` to
+`exc_message`. The D-027 three-key **mandate** (and the
+ordering of the keys: cid / type / message-content) is
+preserved; only the canonical name changed. Recorded in
+`MEMORY.md`, `CURRENT_STATE.md`, `NEXT_AGENT.md`, and
+`docs/AUDITS/M3_REPORT.md`.
+
+**Resolved**: 2026-06-20. Part of M3 closure commit `fb110bd`.
+
+## F-30 - Starlette `ServerErrorMiddleware` re-raises after handler
+
+**Tag**: MEDIUM (architectural drift; framework-level)
+**Location**: `starlette.middleware.errors.ServerErrorMiddleware`
+(starlette 0.48, vendored via FastAPI 0.116.2).
+
+**Finding**: M3's first-pass catch-all used
+`FastAPI.add_exception_handler(Exception, ...)`. Starlette's
+outer `ServerErrorMiddleware` accepts the handler and writes
+its response, then unconditionally `raise exc` at the end of
+`__call__`. `httpx.ASGITransport` then re-raises the
+exception to the client test, breaking the
+`test_unhandled_exception_returns_envelope` assertion even
+though the response had been sent.
+
+**Fix**: M3 installs the catch-all as a
+`BaseHTTPMiddleware` (`_ErrorEnvelopeMiddleware`) that
+consumes the exception inside the request pipeline. The
+response is returned from `dispatch`; the framework's
+outer re-raise becomes harmless because the response is
+already committed. Future domain-error handlers layer on
+top of this middleware in a future milestone.
+
+**Resolved**: 2026-06-20. Part of M3 closure commit `fb110bd`.
+
 ---
 
 ## Summary
 
 - Critical: 1 (F-21)
 - High: 10 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22, F-23, F-24, F-25, F-27)
-- Medium: 8 (F-2, F-7, F-9, F-11, F-17, F-20, F-26, F-28)
+- Medium: 10 (F-2, F-7, F-9, F-11, F-17, F-20, F-26, F-28, F-29, F-30)
 - Low: 9
 
 The critical finding (F-21) was discovered during developer-side

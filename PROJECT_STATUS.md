@@ -78,9 +78,12 @@ introduced until all of its dependencies are validated.
    required_clearance, status)`) are present. EXPLAIN check passes.
 3. M2 — Repositories. In-memory first, real PostgreSQL second.
    Every operation used by later phases has a passing test.
-4. M3 — API Skeleton. FastAPI startup, `/health`, `/query` stub,
-   correlation ID middleware, error translation. No retrieval, no
-   workflow, no generation.
+4. M3 — API Skeleton. FastAPI app factory, correlation-ID
+   middleware, error envelope translation layer, settings,
+   `GET /health`, `/openapi.json`, `/docs`, `/redoc`.
+   Standalone — no DB, no JWT, no query-answer endpoint, no
+   audit/correlation lookup. Launch via
+   `uvicorn src.api.app:create_app --factory`.
 5. M4 — Audit Infrastructure. Correlation ID helper, audit writer
    interface, basic audit event persistence. Builds on the repositories.
 6. M5 — JWT Validation. Validate the JWT, build the actor-loading
@@ -92,8 +95,10 @@ introduced until all of its dependencies are validated.
    aware. The state object is typed with `user_id`, `department`,
    `clearance`, `role`, and `correlation_id` from the first test.
    The workflow refuses to start if any of these fields are missing
-   (anonymous execution is impossible). The API at M3 invokes the
-   workflow with a JWT-derived actor.
+   (anonymous execution is impossible). The query-answer endpoint
+   that lands at M5/M6 invokes the workflow with a JWT-derived
+   actor. (The M3 route surface itself does NOT invoke any
+   workflow; it is a standalone skeleton.)
 8. M7 — Ingestion. LlamaIndex loads, semantic-chunks, and embeds
    documents. Idempotent on `documents.content_checksum`. Replaced
    chunks are not searchable. Job outcome is written to `audit_logs`.

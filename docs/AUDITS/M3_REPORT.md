@@ -3,8 +3,10 @@
 **Date**: 2026-06-20
 **Milestone**: M3 — API Skeleton
 **Scope**: Pure API skeleton per the user's reduction.
-**Working tree status**: implementation complete; pending
-single-commit closure on `main`.
+**Status**: **CLOSED 2026-06-20** at commit `fb110bd` on
+`main` (pushed to `origin/main`).
+**Closure artifact**: this file plus
+`docs/HANDOFF/API_LOCAL_RUN.md`.
 
 ---
 

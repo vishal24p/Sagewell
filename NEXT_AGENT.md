@@ -17,12 +17,8 @@ Documents" before doing anything.
 ## Current Status
 
 **M0 closed on 2026-06-19 (commit `a78e21c`). M1 closed on
-2026-06-19. M2 closed on `main` at `7849d89`. M3 implementation
-is complete in the working tree as of 2026-06-20; verification
-is locally green (44 passed, 0 failed across the combined
-api/rbac/infrastructure suites; remaining skips are M2
-Postgres parity requiring the dev compose). M3 has not been
-committed yet as of `LAST_UPDATED`.**
+2026-06-19. M2 closed on `main` at `7849d89`. M3 closed on
+`main` at `fb110bd` (pushed to `origin/main`).**
 
 The M3 silhouette is the pure API skeleton per the user's
 reduced-scope decision:
@@ -41,33 +37,33 @@ and query-answer workflow all live in later milestones.
 
 ## Next Task
 
-Commit M3 as a single milestone commit on `main`. Run the
-verification gates listed under "M3 Exit Criteria". When
-verification is complete, commit and append the M3 closure row
-to `MEMORY.md`, `CURRENT_STATE.md`, `MILESTONE_GATES.md`,
-`AUDIT_HISTORY.md`, and write `docs/AUDITS/M3_REPORT.md`.
+The current task is to flip this file (and the rest of the
+operational handoff) to **M4 — Audit Infrastructure**.
+Specifically:
 
-After the commit lands, `NEXT_AGENT.md` flips to point at
-M4. The M4 entry point is the Audit infrastructure
-introduction: a real `AuditLogRepository` writer, a
-correlation-id ingestion writer hook (no DB read inside the
-correlation middleware), and the first durable audit-log row
-on `user-auth-attempt` events.
+- Introduce a real `AuditLogRepository` *writer* (the M2
+  ports already declare its protocol; M4 makes the writer
+  durable).
+- Wire a correlation-id ingestion hook so that user-decision
+  paths write durable `audit_logs` rows.
+- Do NOT add `/v1/*` routes or any JWT/Auth coupling at
+  M4. Those belong to M5.
+- Do NOT add any retrieval/reranker coupling at M4. That
+  belongs to M8.
 
-### How to test (M3)
+### How to test (M4 prelude)
 
 - `.venv\Scripts\python.exe -m pytest -q tests/api tests/rbac
-  tests/infrastructure` is green (with the M2 Postgres parity
-  half in skip until a developer-side Docker run).
+  tests/infrastructure` is green.
 - `grep -rE "fastapi|pydantic|uvicorn" src/domain/` returns
   zero rows.
 - `grep -rE "asyncpg|psycopg|sqlalchemy|PersistenceError|
   ResourceNotFound|DomainError" src/api/` returns zero rows.
 
-### How to verify before moving on to M4
+### How to verify before moving on to M5
 
-- All M3 exit criteria listed in
-  `docs/AUDITS/M3_REPORT.md` are checkstamped.
+- The M3 closure record at `docs/AUDITS/M3_REPORT.md` remains
+  accurate.
 - Changes to the M3 boundary require an ADR (any new route or
   any new auth/audit coupling would trigger it).
 
@@ -99,40 +95,38 @@ The M0..M3 "Do Not Touch" lists still apply. Additions for M4:
 - Any framework-only authentication provider (Okta, Entra,
   Auth0, OIDC). The V1 auth path is JWT-only.
 
-## M3 Exit Criteria (carry-forward)
+## M3 Exit Criteria (CLOSED at `fb110bd`)
 
-M3 is complete when **all** of the following are true:
+M3 was closed on 2026-06-20 with the commit `fb110bd`. All
+twenty M3 exit criteria are documented in
+`docs/AUDITS/M3_REPORT.md` with VERIFIED status. Re-running
+the criteria should produce the same outcome — the
+repository state is recorded in that report.
 
-1. `src/api/app.py` exports `def create_app() -> FastAPI` that
-   returns a working app on import-test.
-2. `uvicorn src.api.app:create_app --factory` boots without
-   error.
-3. `GET /health` returns 200 with body `{"status": "ok"}`.
-4. `GET /openapi.json` returns 200; the document contains
-   `paths["/health"]` and `components.schemas.HealthResponse`.
-5. `GET /docs` returns 200 (HTML default UI).
-6. `CorrelationIdMiddleware` echoes a user-supplied
-   `X-Correlation-ID` and generates a UUID4 when missing.
-7. Pydantic validation errors return 422 with the canonical
-   error envelope (`code`, `message`, `correlation_id`).
-8. An uncaught exception returns 500 with the canonical error
-   envelope. The catch-all logs only the three keys mandated
-   by D-027 (`correlation_id`, `exception_type`, `exc_message`).
-9. No domain exception types are imported under `src/api/`.
-10. No database driver imports appear under `src/api/`.
-11. No JWT/Auth imports appear under `src/api/`.
-12. `src/domain/` contains zero framework imports.
-13. `pytest tests/api/` reports at least 13 distinct passing
-    tests and zero failures.
-14. M0 RBAC Access Outcome Suite still 31/31 green.
-15. M2 parity suite still 50 passed / 2 by-design skips
-    against the dev compose (skips OK when compose is absent).
-16. M3 closure docs committed (`M3_REPORT.md`,
-    `API_LOCAL_RUN.md`).
-17. README lightweight note pointing to `API_LOCAL_RUN.md`.
-18. Combined `pytest -q` reports `0 failed`.
-19. Working tree clean of agent-authored scratch scripts.
-20. AGENTS.md guardrails intact.
+## M4-Do-Not-Touch (carry-forward from M0..M3)
+
+The M0..M3 "Do Not Touch" lists still apply. Additions for M4
+are NOT prohibitions against working on M4; they are
+prohibitions against pre-empting M5+ while working on M4:
+
+- Do NOT introduce JWT validation, even for testing — that
+  belongs to M5.
+- Do NOT introduce API-key auth, OAuth, or any non-JWT
+  auth surface.
+- Do NOT add `/v1/*` routes that proxy to retrieval, ranking,
+  or generation. The audit writer at M4 owns the durable row;
+  retrieval/ingress of `audit_events` is via the M2
+  `AuditLogRepository` ports only.
+- Do NOT add OpenAI/Anthropic/genai SDK dependency — wait
+  for M11.
+- Do NOT add prompt-protection guard (regex or LLM). That
+  belongs to M10/M11.
+- Do NOT add streaming or WebSocket — V1 stays request/response.
+- Do NOT add CORS configuration beyond what the framework
+  needs for the dev `/docs` and `/redoc` UIs.
+- Do NOT introduce multi-tenant concepts, ACL tables, or
+  group/role authorization. These are out of V1 per
+  `AGENTS.md`.
 
 ---
 
