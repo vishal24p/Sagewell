@@ -12,7 +12,7 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M3 — API Skeleton (Reduced Scope).**
+**M4 — Audit Infrastructure.**
 
 ## Current Status
 

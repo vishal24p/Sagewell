@@ -87,15 +87,6 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | Roadmap refinement: JWT before LangGraph skeleton | 2026-06-19 |
 | Agent-handoff refactor: `AGENTS.md` reduced to constitution, `NEXT_AGENT.md` and `docs/HANDOFF/` created | 2026-06-19 |
 
-| Item | Date |
-|---|---|
-| V1 architecture approved (`docs/adr/0001-...`) | 2026-06-19 |
-| Documentation audit and corrections (`docs/AUDIT_REPORT.md`) | 2026-06-19 |
-| Architecture verification pass (`docs/VERIFICATION_REPORT.md`) | 2026-06-19 |
-| Implementation roadmap published (`PROJECT_STATUS.md` M0-M14) | 2026-06-19 |
-| Roadmap refinement: JWT before LangGraph skeleton | 2026-06-19 |
-| Agent-handoff refactor: `AGENTS.md` reduced to constitution, `NEXT_AGENT.md` and `docs/HANDOFF/` created | 2026-06-19 |
-
 ---
 
 ## In Progress
@@ -121,7 +112,6 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description |
 |---|---|
-| M3 | API Skeleton. |
 | M4 | Audit Infrastructure. |
 | M5 | JWT Validation. |
 | M6 | LangGraph Skeleton (actor-aware). |
@@ -165,7 +155,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | 2026-06-20 | M2 test isolation: per-test `TRUNCATE ... RESTART IDENTITY CASCADE` in `clean_postgres_state` fixture. Postgres tests skip when `SAGEWELL_DB_URL` is unset/unreachable. After the F-25 / F-24 fixes, `postgres_pool` is function-scoped to bind cleanly to the per-test event loop, and `seed_parent_rows` covers the FK parent gap. |
 | 2026-06-20 | M2 SQL-level filters never combine department + clearance. Status/id/source only. The compound decision remains the access-decision pure function's responsibility. |
 | 2026-06-20 | EvaluationResultRepository validators (`in_memory/evaluation_results.py`, `postgres/evaluation_results.py`) hardened after F-28 surfaced a `TypeError` from `raw_string not in EnumType`. Both now check `isinstance(result.suite, Suite) and result.suite.value in {member.value for member in Suite}` and raise `PersistenceError` uniformly. |
-| 2026-06-20 | M2 closed. Developer-side parity run on `localhost:55432` reported 50/52 repository tests passed (2 by-design skips, 0 failed, 0 errors), and combined pytest 81 passed / 2 skipped. M3 (API Skeleton) is the next milestone. |
+| 2026-06-20 | M2 closed. Developer-side parity run on `localhost:55432` reported 50/52 repository tests passed (2 by-design skips, 0 failed, 0 errors), and combined pytest 81 passed / 2 skipped. M3 (API Skeleton) is the next milestone. (Superseded 2026-06-20: M3 closed at `fb110bd`. M4 — Audit Infrastructure — is the next milestone.) |
 | 2026-06-20 | AuditLogRepository enforces the seven M0 IMM reason codes at append time. Other strings rejected with `PersistenceError`. |
 | 2026-06-20 | M3 reduced-scope decision: pure API skeleton. Dropped JWT stub, query-answer stub, correlation-router reads, DB dependency. M3's route surface = `GET /health`, `GET /openapi.json`, `GET /docs`, `GET /redoc`. Launch contract: `uvicorn src.api.app:create_app --factory`. |
 | 2026-06-20 | D-020 locked: UUID4 for correlation ids. |
