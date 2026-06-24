@@ -2,12 +2,32 @@
 Application-emitted reason codes for audit_logs.reason_code.
 
 The seven M0 imm codes are emitted by the access-decision pure
-function. Additional reason codes land in their own milestones;
-this module is the single source of truth for the current
-allowed set.
+function. The repository layer rejects any reason_code outside
+the currently allowed set (fail-closed at the audit
+repository boundary). Adding new reason codes happens in the
+owning milestone; this module is the single source of truth
+for the current set.
 
-The repository layer rejects any reason_code outside this set
-(fail-closed at the audit repository boundary).
+V1 allowed set (M0 + M5 carve-out):
+
+  M0 (access-decision pure function):
+    - missing_user_department
+    - missing_user_clearance
+    - missing_document_department
+    - missing_document_clearance
+    - department_mismatch
+    - clearance_insufficient
+    - allowed
+
+  M5 (RecordedAuditEvent on JWT validation failures):
+    - jwt_invalid
+
+The `ReasonCode` literal at the bottom remains the *strict*
+type used by the access-decision pure function only; widening
+it for the M5 JWT row would falsely advertise M5 reason codes
+as legal RBAC outputs. New V1 reason codes land here as their
+own milestones and extend `is_allowed_reason_code` (the
+repository whitelist).
 """
 from typing import Literal
 
@@ -22,8 +42,16 @@ ACCESS_DECISION_CLEARANCE_INSUFFICIENT = "clearance_insufficient"
 ACCESS_DECISION_ALLOWED = "allowed"
 
 
-# The current V1-allowed set. As new codes are added in their own
-# milestones, extend this literal and re-run the audit suite.
+# Reason codes emitted by the application layer for reasons other
+# than the access-decision pure function. J-W-T authentication
+# failures are recorded with this code (M5).
+JWT_INVALID = "jwt_invalid"
+
+
+# Reason codes emitted by the access-decision pure function. The
+# M5 `jwt_invalid` extension is intentionally NOT in this literal;
+# the literal bounds the access-decision's output shape, not the
+# repository's broader V1-allowed set.
 ReasonCode = Literal[
     "missing_user_department",
     "missing_user_clearance",
@@ -35,14 +63,30 @@ ReasonCode = Literal[
 ]
 
 
+# The repository's V1-allowed set. As new reason codes are
+# introduced in their own milestones, extend this set. The
+# `is_allowed_reason_code` predicate below is the single hard
+# validation point used by every adapter (in-memory + Postgres).
+_ALLOWED_REASON_CODES: frozenset[str] = frozenset({
+    "missing_user_department",
+    "missing_user_clearance",
+    "missing_document_department",
+    "missing_document_clearance",
+    "department_mismatch",
+    "clearance_insufficient",
+    "allowed",
+    "jwt_invalid",
+})
+
+
 def is_allowed_reason_code(value: str) -> bool:
-    """Return True iff `value` is one of the currently allowed codes."""
-    return value in {
-        "missing_user_department",
-        "missing_user_clearance",
-        "missing_document_department",
-        "missing_document_clearance",
-        "department_mismatch",
-        "clearance_insufficient",
-        "allowed",
-    }
+    """Return True iff `value` is one of the currently allowed codes.
+
+    The repository's V1-allowed set is the union of the seven M0
+    imm codes plus any reason codes introduced by their owning
+    milestones. M5 introduces `jwt_invalid` for the JWT validation
+    path; the function returns True for that code at every
+    adapter boundary.
+    """
+    return value in _ALLOWED_REASON_CODES
+

@@ -823,3 +823,105 @@ The high-severity portability and schema-correctness findings
 (F-1, F-3, F-5, F-17) will be fixed in this remediation pass.
 The remaining items are documented for their owning milestones
 or accepted as-is.
+
+---
+
+## F-31 — M5 auth middleware: dispatcher methods reference unbound `verify_jwt`
+
+**Tag**: MEDIUM (architectural drift; symptom-level 500)
+**Location**: `src/api/middleware/auth.py`. The initial
+`JwtAuthMiddleware` had `_dispatch_token` and `_dispatch_failure`
+methods that referenced a bare `verify_jwt` name. The local
+`verify_jwt` lookup inside `__call__` only existed in `__call__`'s
+local scope; the dispatcher methods (instance methods, not
+nested functions) did not see it. Calling the middleware on any
+non-skip path raised `NameError: name 'verify_jwt' is not defined`,
+which the M3 catch-all middleware turned into a 500 envelope. The
+5-test failure pattern during initial M5 verification — every
+test that hit the middleware except the pure-skip paths — was the
+clear signature of the bug.
+
+**Fix**: pass `verify_jwt` as an explicit keyword argument from
+`__call__` to `_dispatch_token` and `_dispatch_failure`. Each
+dispatcher now receives its single collaborator as a typed
+parameter; no closure ambiguity. 6/6 middleware tests green;
+combined pytest 73/73 green.
+
+**Resolved**: 2026-06-21. Part of the M5 closure commit.
+
+## F-32 — M5 test route: FastAPI treats bare `request` as a query param
+
+**Tag**: LOW (test-only ergonomics)
+**Location**: `tests/api/test_auth_middleware.py`. The test
+ephemeral `/protected` route declared `async def _echo_actor(request)`
+without a `Request` type annotation. FastAPI's parameter binding
+step interpreted `request` as a query parameter and produced
+HTTP 422 on every successful-verification call, masking the
+real auth middleware path.
+
+**Fix**: change `async def _echo_actor(request):` to
+`async def _echo_actor(request: Request):`. `Request` is the
+canonical FastAPI-Starlette type for the framework-injected
+request object. The route now succeeds at 200 with a valid
+token and 401 with a missing / bad-signature token.
+
+**Resolved**: 2026-06-21. Part of the M5 closure commit.
+
+## F-33 — Test HS256 secrets below PyJWT's 32-byte minimum
+
+**Tag**: LOW (cosmetic; warning-level diagnostics)
+**Location**: `tests/api/conftest.py`,
+`tests/application/auth/conftest.py`,
+`tests/application/auth/test_hs256_signer.py`,
+`tests/api/test_auth_middleware.py`. Several fixture-level
+and inline `tests/application/auth/test_hs256_signer.py`
+secrets were below PyJWT's 32-byte recommended key length.
+PyJWT emitted `InsecureKeyLengthWarning` on every
+`encode` / `decode` call.
+
+**Fix**: bump fixture constants to ≥32 bytes:
+`b"dev-secret-for-tests-with-32-byte-min-len!"`,
+`b"test-secret-do-not-use-in-prod-32-bytes!"`,
+`b"another-secret-not-the-real-one-32b!"`,
+`b"different-secret-than-the-real-one!"`. PyJWT warning
+silenced; all assertions still hold (length is well above
+the HS256 minimum).
+
+**Resolved**: 2026-06-21. Part of the M5 closure commit.
+
+## F-34 — M5 middleware reads auth state via `scope["app"].state`, not `self._app`
+
+**Tag**: LOW (architectural hygiene)
+**Location**: `src/api/middleware/auth.py`. The middleware
+runtime resolution of `app.state.verify_jwt` was originally
+typed as `getattr(self._app.state, "verify_jwt", None)`.
+`self._app` is the **inner** wrapped application (the
+next-layer middleware or the FastAPI routing), not the
+FastAPI host application. Starlette injects the FastAPI
+host application at `scope["app"]`, so the correct lookup
+is `scope.get("app")` then `getattr(fastapi_app.state,
+"verify_jwt", None)`.
+
+**Fix**: rewrite the lookup explicitly. The middleware is
+still a pure-ASGI class with `self._app` as its
+forwarder; the runtime state read is per-request through
+`scope["app"]`. This mirrors the pattern used by the M3
+correlation middleware. 6/6 middleware tests green.
+
+**Resolved**: 2026-06-21. Part of the M5 closure commit.
+
+---
+
+## Summary (updated through M5)
+
+- Critical: 1 (F-21)
+- High: 10 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22, F-23, F-24, F-25, F-27)
+- Medium: 11 (F-2, F-7, F-9, F-11, F-17, F-20, F-26, F-28, F-29, F-30, F-31)
+- Low: 13 (F-4, F-6, F-10, F-12, F-13, F-15, F-16, F-18, F-19, F-32, F-33, F-34)
+
+M5 surfaced four new findings (F-31…F-34). F-31 was the most
+significant: a NameError-of-deceiving-shape that produced 500s
+on every non-skip request during initial verification, only
+caught by the middleware test matrix. F-32..F-34 were
+self-contained test/wiring-hygiene items resolved in the same
+session.

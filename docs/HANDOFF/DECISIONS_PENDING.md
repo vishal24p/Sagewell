@@ -11,22 +11,27 @@ decision. When it is rejected, archive it in this file under
 
 ## Open
 
-### D-001 — JWT signing algorithm and key management
+### D-001 — JWT signing algorithm and key management (long-term)
 
 - **Context**: V1 uses JWT for authentication. The specific
   algorithm (HS256, RS256, EdDSA, etc.), the key source, the key
   rotation policy, and the key distribution mechanism are not
-  pinned.
+  pinned for the long term.
+- **M5 carve-out** (already approved, see `## Approved` below):
+  HS256 + shared secret from `SAGEWELL_JWT_SECRET`.
 - **Options**:
-  - HS256 with shared secret from environment variable.
-  - RS256 with public key fetched from a JWKS endpoint.
+  - Keep HS256 indefinitely (rotates via restart).
+  - Switch to RS256 with public key fetched from a JWKS
+    endpoint.
   - EdDSA with public key fetched from a JWKS endpoint.
-  - Other.
-- **Recommendation**: RS256 with JWKS endpoint. Standard
-  enterprise pattern, supports rotation without redeploy, supports
-  asymmetric verification without distributing private keys.
+  - Federated keying through an external KMS / HSM.
+- **Recommendation (deferred)**: revisit at the point M5+
+  introduces multi-service verification or rotation without
+  service restart. M5 is HS256-only; this entry is the
+  forward ADR placeholder.
 - **Status**: Open.
-- **Blocking**: M5 (JWT Validation).
+- **Blocking**: any future milestone that needs asymmetric
+  crypto or non-restart rotation.
 
 ### D-002 — Embedding Model capability
 
@@ -323,6 +328,60 @@ decision. When it is rejected, archive it in this file under
 ---
 
 ## Approved
+
+### D-001 — JWT signing algorithm and key management (Approved 2026-06-21)
+
+- **M5 implementation carve-out (current)**: HS256 only at
+  M5. Symmetric, shared secret. Key source:
+  `SAGEWELL_JWT_SECRET` environment variable. Required at
+  runtime.
+- **Long-term question still open**: future ADRs may pin
+  RS256 with a JWKS endpoint or an external KMS source.
+  See `## Open` D-001 below.
+
+### D-038 — M5 auth application package (Approved 2026-06-21)
+
+- **Path**: `src/application/auth/`. Sibling to
+  `src/application/audit_event/`. Owns `VerifyJwtToken`,
+  typed-actor projection, typed-failure projection, and the
+  HS256 signer. Imports only `src/domain/ports/` and intra-
+  application.
+
+### D-039 — M5 JWT middleware at the API boundary (Approved 2026-06-21)
+
+- **Path**: `src/api/middleware/auth.py`. Calls
+  `VerifyJwtToken` on every request. Bad/missing tokens
+  produce 401 with the M3 error envelope and a
+  `RecordAuditEvent` row carrying
+  `reason_code = "JWT_INVALID"`.
+- **Skip path**: `/health`, `/docs`, `/redoc` only. The
+  middleware enforces auth on `/openapi.json` and every
+  other route.
+
+### D-040 — M5 authentication semantics and identity
+projection (Approved 2026-06-21)
+
+- **Q1 (trust)**: After successful verification, the
+  middleware treats the JWT-claimed identity as the
+  authoritative actor. No database lookup is performed
+  during authentication. Issuing-server-validated
+  `sub`, `department`, `clearance`, `role` are projected
+  through `VerifyJwtToken` and attached to
+  `request.state.actor` for downstream use cases (M6+).
+- **Q2 (unknown-user failure actor)**: When authentication
+  fails, the `RecordAuditEvent` row uses a typed actor
+  carrier with `user_id="unknown-user"`,
+  `department="unknown"`, `clearance="unknown"`,
+  `role="unknown"` so the row carries the failure without
+  claiming identity. The row still carries the request's
+  `correlation_id`.
+- **Q3 (openapi.json protection)**: Auth middleware
+  protects `/openapi.json`. The skip list is
+  `{"/health", "/docs", "/redoc"}` only.
+- **Boundary rule**: The auth middleware stays a thin
+  glue layer. It does NOT do RBAC, retrieval, generation,
+  prompt-protection, or session management. It does NOT
+  perform any DB call.
 
 ### D-015 — M2 repository port layout (Approved 2026-06-20)
 

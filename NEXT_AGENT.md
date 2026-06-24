@@ -12,15 +12,17 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M4 — Audit Infrastructure (in progress, pre-commit).**
+**M6 — LangGraph Skeleton (actor-aware).**
 
 ## Current Status
 
 **M0 closed on 2026-06-19 (commit `a78e21c`). M1 closed on
-2026-06-19. M2 closed on `main` at `7849d89`. M3 closed on
-`main` at `fb110bd` (pushed to `origin/main`). M4 implementation
-is complete in the working tree as of 2026-06-20; pending the
-single-commit closure and `M4_REPORT.md`.**
+2026-06-19. M2 closed on `main` at `7849d89`. M3 closed at
+`fb110bd`. M4 closed at `03351c4`. All pushed to `origin/main`.
+M5 is closed (this turn) on `rag-langgraph`; the next advisory
+step reviews fast-forward against `main` once verification is
+recorded. M6 (LangGraph Skeleton, actor-aware) is the next
+implementation milestone.**
 
 M3 silhouette is the pure API skeleton per the user's reduced
 decision (`GET /health`, `GET /openapi.json`, `GET /docs`,
@@ -40,67 +42,145 @@ M4 silhouette:
   remains DB-free.
 - Combined pytest: 54 passed, 52 sandbox-skips, 0 failed.
 
+M5 silhouette (this turn; closure record at
+`docs/AUDITS/M5_REPORT.md`):
+
+- `src/application/auth/` package: `VerifyJwtToken` use case,
+  `HS256JwtSigner`, `AuthActor` projection, typed-failure
+  hierarchy (`AuthFailure` + `JwtMissing` / `JwtMalformed` /
+  `JwtBadSignature` / `JwtExpired` / `JwtInvalid`), and the
+  `UNKNOWN_USER_ACTOR` typed failure carrier.
+- 10 distinct passing tests at
+  `tests/application/auth/`.
+- `src/api/middleware/auth.py` is a pure-ASGI JWT validation
+  middleware. Skips `{"/health", "/docs", "/redoc"}`. On every
+  other path, runs `VerifyJwtToken`. Bad / missing / expired /
+  bad-signature tokens return 401 with the canonical
+  `{code, message, correlation_id}` envelope and a `RecordAuditEvent`
+  row carrying `reason_code="jwt_invalid"` and
+  `metadata["auth_failure_carrier"] = "unknown-user"`.
+- `__main__.py` reads `Settings.jwt_secret` and constructs an
+  `HS256JwtSigner(secret=...)` when set. When unset, the
+  launch contract stays DB-free and auth-less.
+- `create_app(jwt_signer=...)` is the M5 DI seam. With
+  `jwt_signer=None` the middleware mounts but is a no-op.
+- Successful verification attaches the typed `AuthActor` to
+  `scope["state"]["actor"]` for M6+ consumers (the LangGraph
+  state machine).
+- Combined pytest: 73 passed, 52 sandbox-skips, 0 failed.
+  M0 RBAC still 31/31; M3 tests/api still 13/13; M4
+  application tests still 10/10.
+- Findings F-31..F-34 surfaced during verification and were
+  resolved in this session.
+
 ---
 
 ## Next Task
 
-The current task is to flip this file (and the rest of the
-operational handoff) to **M4 — Audit Infrastructure**.
-Specifically:
+The current task is to land **M5 — JWT Validation** on
+`main`:
 
-- Introduce a real `AuditLogRepository` *writer* (the M2
-  ports already declare its protocol; M4 makes the writer
-  durable).
-- Wire a correlation-id ingestion hook so that user-decision
-  paths write durable `audit_logs` rows.
-- Do NOT add `/v1/*` routes or any JWT/Auth coupling at
-  M4. Those belong to M5.
-- Do NOT add any retrieval/reranker coupling at M4. That
-  belongs to M8.
+- HS256-only signer, no JWKS (D-001). M5 introduces a real
+  signing/verification boundary; pick RS256 or JWKS later.
+- Introduce `src/application/auth/` as a dedicated
+  application package (D-038). The auth package owns the
+  `VerifyJwtToken` use case and the typed-actor projection.
+- Add a FastAPI middleware at the API boundary that calls the
+  `VerifyJwtToken` use case on every request (D-039). Bad or
+  missing tokens produce 401 and a `code=JWT_INVALID` row in
+  `audit_logs` (route through M4's `RecordAuditEvent`).
+- `__main__.py` is updated to construct the pool and pass it
+  to the now-real run-time FastAPI factory.
+- `create_app(audit_repo=None)` keeps accepting the seam; M5
+  additionally accepts `jwt_signer` so token verification is
+  configurable.
 
-### How to test (M4 prelude)
+### How to test (M5 prelude)
 
 - `.venv\Scripts\python.exe -m pytest -q tests/api tests/rbac
-  tests/infrastructure` is green.
+  tests/infrastructure tests/application` is green.
 - `grep -rE "fastapi|pydantic|uvicorn" src/domain/` returns
   zero rows.
-- `grep -rE "asyncpg|psycopg|sqlalchemy|PersistenceError|
-  ResourceNotFound|DomainError" src/api/` returns zero rows.
+- `grep -rE "asyncpg|psycopg|sqlalchemy" src/application/
+  src/domain/` returns zero rows (the auth package must
+  import only from ports, not from any DB driver).
 
-### How to verify before moving on to M5
+### How to verify before moving on to M6
 
-- The M3 closure record at `docs/AUDITS/M3_REPORT.md` remains
+- The M4 closure record at `docs/AUDITS/M4_REPORT.md` remains
   accurate.
-- Changes to the M3 boundary require an ADR (any new route or
-  any new auth/audit coupling would trigger it).
+- The M5 closure record at `docs/AUDITS/M5_REPORT.md` carries
+  the route + audit-row + JWT-validator behavior, including
+  a typed failure-row that lands through M4's
+  `RecordAuditEvent`.
+- The launch contract `uvicorn src.api.app:create_app
+  --factory` boots an instance with `/health` returning 200
+  *without* a DB only when `audit_repo=None` and a dev signing
+  secret is provided. A DB-backed audit row lands for bad
+  tokens when a pool is supplied.
 
 ---
 
 ## Relevant Documents
 
-Read these before starting M4:
+Read these before starting M5:
 
-- `ARCHITECTURE.md` — layered boundaries; the audit writer
-  layer lives inside `src/domain/ports/`.
-- `DATABASE_SCHEMA.md` — V1 tables; `audit_logs` rows are the
-  primary write target.
-- `POLICIES.md` — IMM reason-code rules and the seven M0 reason
-  codes.
-- `WORKFLOWS.md` — the audit writer is invoked from M5 onward.
+- `ARCHITECTURE.md` — JWT validation is the first boundary on
+  the primary request path; the workflow state shape is
+  `{user_id, department, clearance, role, correlation_id}`.
+- `DATABASE_SCHEMA.md` — V1 tables, including `users` (with
+  `external_subject`) and `audit_logs`.
+- `POLICIES.md` — JWT requirements, required claims
+  (`subject`, `department`, `clearance`, `expiration`), and
+  audit row on every authentication outcome with
+  `reason_code = JWT_INVALID`.
+- `WORKFLOWS.md` — JWT validation is the first step in the
+  query-and-answer flow; bad tokens return 401 with no
+  generation.
 - `skills/project/database_design/SKILL.md` — schema and
-  constraint invariants.
+  constraint invariants for the `users` table.
+- `docs/AUDITS/M4_REPORT.md` — confirms the M4 audit intake
+  is the seam M5 invokes to record token failures.
 
 ---
 
-## Do Not Touch for M4
+## Do Not Touch for M5
 
-The M0..M3 "Do Not Touch" lists still apply. Additions for M4:
+The M0..M4 "Do Not Touch" lists still apply. Additions for
+M5 are NOT prohibitions against working on M5; they are
+prohibitions against pre-empting M6+ while working on M5:
 
-- OpenAI/Anthropic/genai SDK. Wait for M11.
-- Prompt-protection guards (regex, LLM guard). Wait for M10/M11.
-- Streaming responses / SSE / WebSocket. Out of V1.
-- Any framework-only authentication provider (Okta, Entra,
-  Auth0, OIDC). The V1 auth path is JWT-only.
+- Do NOT introduce JWKS or asymmetric crypto. HS256 + shared
+  secret only at M5 (D-001).
+- Do NOT add a `/v1/*` query-answer endpoint. M5 ships
+  `/health` and the JWT-protected error path only; the
+  query-answer endpoint lands at M6 (after the LangGraph
+  skeleton).
+- Do NOT introduce Retrieval / Reranker / LLM / Regex-guard
+  coupling. The auth middleware MUST NOT touch retrieval or
+  generation.
+- Do NOT widen the M0 IMM reason-code set beyond what M5
+  actually emits (D-030 carried forward). M5 introduces the
+  `JWT_INVALID` reason code through the audit intake; the
+  seven M0 codes are unchanged.
+- Do NOT introduce streaming, SSE, or WebSocket — V1 stays
+  request/response.
+- Do NOT introduce CORS, OIDC, Okta, Entra ID, LDAP, or
+  external IAM. The V1 auth path is JWT-only.
+- Do NOT introduce multi-tenant concepts, ACL tables, or
+  group/role authorization. These are out of V1 per
+  AGENTS.md.
+- Do NOT pivot the auth path away from JWT-claim trust
+  (Q1) or weaken the unknown-user failure actor carrier
+  (Q2). Adding DB lookups, role-mapping tables, or external
+  identity resolution here would re-shape the access
+  pipeline and require an ADR.
+- Do NOT bind `/openapi.json` to the auth middleware
+  differently across environments. M5 enforces JWT on
+  `/openapi.json` everywhere by default (Q3); only
+  `/health`, `/docs`, and `/redoc` skip the middleware.
+
+---
 
 ## M3 Exit Criteria (CLOSED at `fb110bd`)
 
@@ -110,30 +190,32 @@ twenty M3 exit criteria are documented in
 the criteria should produce the same outcome — the
 repository state is recorded in that report.
 
-## M4-Do-Not-Touch (carry-forward from M0..M3)
+## M5-Not-Touch (carry-forward from M0..M4)
 
-The M0..M3 "Do Not Touch" lists still apply. Additions for M4
-are NOT prohibitions against working on M4; they are
-prohibitions against pre-empting M5+ while working on M4:
+The M0..M4 "Do Not Touch" lists still apply. Additions for M5
+are NOT prohibitions against working on M5; they are
+prohibitions against pre-empting M6+ while working on M5:
 
-- Do NOT introduce JWT validation, even for testing — that
-  belongs to M5.
-- Do NOT introduce API-key auth, OAuth, or any non-JWT
-  auth surface.
+- Do NOT introduce JWT validation, even for testing of M0..M4 —
+  M5 owns that exemption. Already-implemented M0..M4 code
+  paths must work without a JWT.
+- Do NOT introduce API-key auth, OAuth, OIDC, Okta, Entra ID,
+  LDAP, or any non-JWT auth surface.
 - Do NOT add `/v1/*` routes that proxy to retrieval, ranking,
-  or generation. The audit writer at M4 owns the durable row;
-  retrieval/ingress of `audit_events` is via the M2
-  `AuditLogRepository` ports only.
+  or generation. M5 ships `/health` + the JWT-protected
+  error path only.
 - Do NOT add OpenAI/Anthropic/genai SDK dependency — wait
   for M11.
-- Do NOT add prompt-protection guard (regex or LLM). That
-  belongs to M10/M11.
+- Do NOT add prompt-protection guard (regex, LLM, etc).
+  That belongs to M10/M11.
 - Do NOT add streaming or WebSocket — V1 stays request/response.
 - Do NOT add CORS configuration beyond what the framework
   needs for the dev `/docs` and `/redoc` UIs.
 - Do NOT introduce multi-tenant concepts, ACL tables, or
   group/role authorization. These are out of V1 per
-  `AGENTS.md`.
+  AGENTS.md.
+- Do NOT widen the M0 IMM reason-code set beyond what M5
+  actually emits. I-001 stays open.
 
 ---
 
@@ -177,4 +259,15 @@ The M0..M2 lists still apply unless resolved. M3 introduces:
   `PersistenceFailure(AuditEventError)` both kept.
 - D-037 (M4 implementation sign-off): approved at this
   turn; landing code on main.
+- D-038 (M5 auth application package): `src/application/auth/`
+  is a dedicated application package, sibling to
+  `src/application/audit_event/`. The auth use case
+  (`VerifyJwtToken`) and the typed-actor projection live
+  there and import only from `src/domain/ports/` plus intra-
+  application.
+- D-039 (M5 JWT middleware at the API boundary): FastAPI
+  middleware in `src/api/middleware/auth.py` performs token
+  verification on every request. Bad or missing tokens
+  produce 401 with the canonical error envelope and an
+  audit row through M4's `RecordAuditEvent`.
  

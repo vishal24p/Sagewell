@@ -38,8 +38,8 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M2 closed. M3 closed. M4 (Audit Infrastructure) is in
-progress.**
+**M2 / M3 / M4 closed on `main`. M5 (JWT Validation) is the
+next milestone.**
 
 M1 closed on 2026-06-19 after developer-side verification ran
 clean against the remediated code (F-21 image tag, F-22 healthcheck
@@ -52,21 +52,37 @@ Suite still 31/31 green; combined pytest reports 81 passed and
 2 by-design skips. Findings F-24..F-28 surfaced during the
 parity run and were fixed before closure.
 
+(Superseded 2026-06-21: M5 is **CLOSED** on `rag-langgraph`.
+Closure report at `docs/AUDITS/M5_REPORT.md`. Combined pytest:
+73 passed, 52 sandbox-skips, 0 failed. M0 RBAC still 31/31;
+M3 test/api still 19/19 (M5 added 6 new middleware tests);
+M4 tests/application/audit_event still 10/10; M5
+tests/application/auth 10/10. Findings F-31..F-34 surfaced
+during verification and were resolved in this session.)
+
+**Current branch**: `rag-langgraph`. M5 commit will land here
+first; the next advisory step reviews fast-forward against
+`main` once verification is recorded.
+
 M3 implementation is complete and committed on 2026-06-20 at
 `fb110bd` (pushed to `origin/main`). The route surface is
 exactly `GET /health`, `GET /openapi.json`, `GET /docs`,
 `GET /redoc`. The launch contract is
 `uvicorn src.api.app:create_app --factory`. The M3 package is
 a pure API skeleton, no DB, no JWT, no query-answer path, and
-no audit/correlation router.
+no audit/correlation router. At M5, `/openapi.json` becomes
+JWT-protected while `/health`, `/docs`, and `/redoc` continue
+to skip the auth middleware (D-039, D-040 Q3).
 
-M4 (Audit Infrastructure) introduces the application layer's
-audit intake use case under `src/application/audit_event/`.
-M4 ships the use case only — no middleware, no test endpoint,
-and no automatic request-time audit writes. The launch
-contract stays DB-free until M5. Findings: F-29 and F-30 from
-M3 are reflected in upstream docs. The M4 implementation is in
-the working tree as of 2026-06-20 but not yet committed.
+M4 implementation is complete and committed on 2026-06-20 at
+`03351c4` (pushed to `origin/main`). M4 introduces the
+application layer's audit intake use case under
+`src/application/audit_event/`. M4 ships the use case only —
+no middleware, no test endpoint, and no automatic request-time
+audit writes; the launch contract stays DB-free until M5.
+Findings F-29 and F-30 from M3 are recorded in
+`docs/AUDITS/FINDINGS.md` and reflected in upstream docs.
+Closure record at `docs/AUDITS/M4_REPORT.md`.
 
 Source of truth: `PROJECT_STATUS.md` M0-M14.
 
@@ -79,6 +95,9 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | M0 | Access Decision (pure) and RBAC Access Outcome Suite. | 2026-06-19 |
 | M1 | Schema, Migrations, Fixtures, Indexes. Verified via the F-21 (image tag), F-22 (healthcheck escaping), and F-23 (host port) remedies. | 2026-06-19 |
 | M2 | Repositories (ports + in-memory + Postgres adapters + parity tests). Developer-side Postgres parity verified on `localhost:55432`. F-24..F-28 surfaced and resolved during the parity run. | 2026-06-20 |
+| M3 | API Skeleton (reduced scope). Route surface is exactly `/health`, `/openapi.json`, `/docs`, `/redoc`; launch contract `uvicorn src.api.app:create_app --factory`. Closure commit `fb110bd` on `main`. | 2026-06-20 |
+| M4 | Audit Infrastructure (application use case only). `src/application/audit_event/RecordAuditEvent` use case; 10 distinct passing tests; launch contract stays DB-free until M5. Closure commit `03351c4` on `main`. | 2026-06-20 |
+| M5 | JWT Validation. `src/application/auth/` (VerifyJwtToken + HS256 signer + typed-actor projection); `src/api/middleware/auth.py` pure-ASGI JWT middleware; `create_app(jwt_signer=...)` DI seam; `__main__` reads `SAGEWELL_JWT_SECRET`. Bad tokens return 401 and a `reason_code=jwt_invalid` audit row through M4's `RecordAuditEvent`. `/health`, `/docs`, `/redoc` skip the middleware; `/openapi.json` is JWT-protected. Combined pytest 73 passed, 52 sandbox-skips, 0 failed. Closure report at `docs/AUDITS/M5_REPORT.md`; findings F-31..F-34 surfaced and resolved during verification. | 2026-06-21 |
 
 ### Completed In Documentation
 
@@ -97,7 +116,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description | Owner | Started |
 |---|---|---|---|
-| M4 | Audit Infrastructure. `src/application/audit_event/` introduced; `RecordAuditEvent` use case parametrized over the in-memory adapter; launches DB-free; 10 distinct tests passing. Pending single-commit closure and `M4_REPORT.md`. | (none assigned) | 2026-06-20 |
+| (none) | M0..M5 closed; M6 (LangGraph Skeleton, actor-aware) is up next on `rag-langgraph`. | (none assigned) | (not started) |
 
 ---
 
@@ -109,6 +128,8 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | 2026-06-19 | M1 — Schema, Migrations, Fixtures, Indexes authored (unverified from the sandbox). Docker compose at `docker/compose.dev.yml` brings up Postgres + ParadeDB `pg_search`. Migrations `001_extensions`, `002_schema`, `003_indexes`, `004_fixtures` are reversible SQL pairs under `migrations/`. Fixtures are SQL under `db/fixtures/` and use a `fixture-` prefix and `source_system='fixture'` so rollback does not touch real data. Apply and rollback run via `infrastructure/migrations/{apply,rollback}.sh`. ADRs `0002-pg-search-paradedb.md` and `0003-raw-sql-migrations.md` capture the M1 decisions. Verification requires a Postgres reachable from a developer environment; the sandbox does not run Docker. |
 | 2026-06-20 | M2 — Repositories (ports + in-memory + Postgres adapters + parity tests) implemented and developer-side verified on `localhost:55432`. RBAC Access Outcome Suite remains 31/31 green. Combined pytest: 81 passed, 2 by-design skips, 0 failed, 0 errors. Findings F-24..F-28 surfaced and resolved during the parity run. M2 status flips from `Implemented, Verified Ready` to `Closed`. |
 | 2026-06-20 | M3 — API Skeleton (reduced scope) implemented and committed at `fb110bd` on `main` (pushed to `origin/main`). `src/api/app.py` exports `create_app()` factory; routes are exactly `/health`, `/openapi.json`, `/docs`, `/redoc`. Launch contract: `uvicorn src.api.app:create_app --factory`. No DB, no JWT, no query-answer stub. The catch-all error middleware logs `correlation_id`, `exception_type`, and `exc_message` (the third key is deliberately spelled `exc_message` to avoid colliding with the std-lib `LogRecord` reserved `message` field). `tests/api/` lands 13 distinct passing tests. Combined pytest: 44 passed across `tests/api`+`tests/rbac` and 52 sandbox-skips total from the Postgres dev-compose tests; M0 RBAC suite still 31/31 green. F-29 and F-30 surfaced and resolved during the M3 implementation. Closure record at `docs/AUDITS/M3_REPORT.md`. |
+| 2026-06-20 | M4 — Audit Infrastructure (application use case only) implemented and committed at `03351c4` on `main` (pushed to `origin/main`). `src/application/audit_event/record.py` ships the `RecordAuditEvent` use case with a `Clock` Protocol, `RecordAuditCommand` DTO, `AuditEventId` newtype, and `AuditEventError` / `PersistenceFailure(AuditEventError)`. `src/api/app.py` accepts an optional `audit_repo` parameter (no `pool` parameter, no asyncpg import). D-029..D-037 locked: M4 ships no middleware, no test endpoint, no automatic request-time audit writes; `__main__.py` continues to launch DB-free. `tests/application/audit_event/` lands 10 distinct passing tests. Combined pytest: 54 passed, 52 sandbox-skips, 0 failed; M0 RBAC still 31/31, M3 tests/api still 13/13. Closure record at `docs/AUDITS/M4_REPORT.md`. |
+| 2026-06-21 | M5 — JWT Validation implemented on `rag-langgraph`. `src/application/auth/` ships the `VerifyJwtToken` use case with a `Clock` Protocol, `VerifyJwtTokenCommand` DTO, typed-failure hierarchy (`AuthFailure` + `JwtMissing`/`JwtMalformed`/`JwtBadSignature`/`JwtExpired`/`JwtInvalid`), `AuthActor` projection, `HS256JwtSigner` implementing the `JwtSigner` Protocol (PyJWT 2.x + manual `exp`-against-clock), and the `UNKNOWN_USER_ACTOR` typed failure carrier. `src/api/middleware/auth.py` is a pure-ASGI JWT middleware that runs `VerifyJwtToken` on every request, skips `{"/health", "/docs", "/redoc"}`, and translates failures to the canonical `{code, message, correlation_id}` 401 envelope. `create_app(jwt_signer=...)` mounts the auth middleware; `__main__` reads `SAGEWELL_JWT_SECRET` and constructs `HS256JwtSigner`. Reason-code whitelist at `src/domain/ports/reason_codes.py` widens to include `jwt_invalid` (the `ReasonCode` Literal stays narrowed to the seven M0 codes so the access-decision output shape is preserved). Combined pytest 73 passed, 52 sandbox-skips, 0 failed. M0 RBAC still 31/31, M3 tests/api still 13/13, M4 application tests still 10/10. F-31 (NameError on `verify_jwt` from middleware dispatchers), F-32 (FastAPI 422 from unannounced `request` parameter), F-33 (PyJWT InsecureKeyLengthWarning on sub-32-byte secrets), and F-34 (state lookup via `scope["app"]` rather than `self._app`) all surfaced and were resolved this session. Closure record at `docs/AUDITS/M5_REPORT.md`. |
 
 ---
 
@@ -116,8 +137,6 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description |
 |---|---|
-| M4 | Audit Infrastructure. |
-| M5 | JWT Validation. |
 | M6 | LangGraph Skeleton (actor-aware). |
 | M7 | Ingestion. |
 | M8 | Retrieval with Access Filter. |
@@ -168,12 +187,33 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | 2026-06-20 | D-025 locked: `/docs`, `/redoc`, `/openapi.json` enabled by default. |
 | 2026-06-20 | D-026 locked: keep `src/api/__main__.py`. |
 | 2026-06-20 | D-027 locked: catch-all log keys = `correlation_id`, `exception_type`, `exc_message`. The third key is renamed from the originally-spoken `message` because the std-lib `LogRecord` reserves `message`; renaming to `exc_message` keeps the three D-027 keys readable while satisfying logbook invariants. |
+| 2026-06-20 | M4 reduced-scope decision: M4 ships the application audit-intake use case only. No middleware, no test endpoint, no automatic request-time audit writes. M4 does NOT widen the seven-code M0 IMM reason-code whitelist; I-001 stays open. |
+| 2026-06-20 | D-029 locked: M4 ships the application use case only. |
+| 2026-06-20 | D-030 locked: `src/domain/ports/reason_codes.py` is unchanged at M4. |
+| 2026-06-20 | D-031 locked: `create_app(*, audit_repo=None)` DI seam. `__main__.py` owns pool construction. |
+| 2026-06-20 | D-032 locked: no automatic audit writes during requests at M4. The launch contract stays DB-free until M5. |
+| 2026-06-20 | D-033 locked: `AUDIT_HISTORY.md` row 16 is edited (not split). |
+| 2026-06-20 | D-034 locked: `src/api/__init__.py` docstring is unchanged at M4. |
+| 2026-06-20 | D-035 locked: `create_app` keeps `audit_repo` only; no `pool` parameter, no `TYPE_CHECKING` asyncpg. |
+| 2026-06-20 | D-036 locked: two-error split kept — `AuditEventError` and `PersistenceFailure(AuditEventError)`. |
+| 2026-06-20 | D-037 locked: M4 implementation sign-off. |
+| 2026-06-21 | D-001 implementation carve-out: HS256 + shared secret from `SAGEWELL_JWT_SECRET` at M5. Long-term question is open in `docs/HANDOFF/DECISIONS_PENDING.md` `## Open` section (RS256 + JWKS or external KMS). |
+| 2026-06-21 | D-038 locked: M5 ships a dedicated `src/application/auth/` package. Sibling to `src/application/audit_event/`. Owns `VerifyJwtToken`, the typed-actor projection (`AuthActor`), the typed-failure hierarchy (`AuthFailure` subclasses), and the `HS256JwtSigner`. Imports only from `src/domain/ports/` and intra-application. |
+| 2026-06-21 | D-039 locked: M5 adds `src/api/middleware/auth.py`, a pure-ASGI JWT validation middleware. Matches the M3 `CorrelationIdMiddleware` style. Calls `VerifyJwtToken` on every request that is not in `PUBLIC_PATHS = {"/health", "/docs", "/redoc"}`. Bad/missing tokens return 401 with the canonical `{code: "auth_failed", message, correlation_id}` envelope and a `RecordAuditEvent` row carrying `reason_code = "jwt_invalid"` and `metadata["auth_failure_carrier"] = "unknown-user"`. |
+| 2026-06-21 | D-040 Q1: Trust the JWT after successful verification; no DB lookup in auth path. Q2: Failure rows use the typed `UNKNOWN_USER_ACTOR` carrier (`user_id="unknown-user"`, `department="unknown"`, `clearance="unknown"`, `role="unknown"`); the actual `actor_user_id: Optional[int]` None is preserved end-to-end on `audit_logs.actor_user_id`. Q3: `/openapi.json` is JWT-protected when the middleware is wired; only `/health`, `/docs`, `/redoc` skip. |
+| 2026-06-21 | D-041 / D-042 (this milestone): middleware classes are pure-ASGI (`__call__(scope, receive, send)`); the runtime lookups for `app.state.verify_jwt` go through `scope.get("app")` rather than `self._app`. `self._app` is the inner wrapped application, not the FastAPI host, so a `state` read through `self._app.state` would resolve through the wrong layer. The FastAPI host is injected by Starlette into `scope["app"]`. |
+| 2026-06-21 | D-043 (this milestone): `src/application/auth/**` import-graph invariants. Verified by AST scan: zero `fastapi`, `pydantic`, `uvicorn`, `asyncpg`, `psycopg`, `sqlalchemy` import-statements in `src/application/` or `src/domain/`. Docstrings may mention "no asyncpg" without violating the constraint. |
+| 2026-06-21 | D-044 (this milestone): reason-code widening lives in `is_allowed_reason_code()`, NOT in the `ReasonCode` Literal. The literal bounds the access-decision's output type and stays narrowed to the seven M0 codes; `_ALLOWED_REASON_CODES: frozenset[str]` accumulates the V1 application's full set across milestones. New V1 codes extend the predicate, not the literal. |
+| 2026-06-21 | `src/api/__init__.py` launcher hook: `__main__.py` reads `Settings.jwt_secret` (bytes) and constructs an `HS256JwtSigner` only when set. When unset, the launch contract stays DB-free and auth-less (M3 invariant preserved). `SAGEWELL_DB_URL` is not consumed at M5; M5 keeps the launch DB-free unless a future milestone carves out explicit pool construction. |
+| 2026-06-21 | `src/api/middleware/auth.py` wires successful verification to `scope["state"]["actor"] = AuthActor`. M6+ consumers (LangGraph state machine) read this projection directly into their typed `{user_id, department, clearance, role, correlation_id}` state. |
+| 2026-06-21 | M5 closed on `rag-langgraph` (not yet pushed to `main`). Findings F-31 (NameError), F-32 (FastAPI 422 from unannounced `request` parameter), F-33 (PyJWT InsecureKeyLengthWarning on sub-32-byte secrets), and F-34 (state lookup via `scope["app"]` rather than `self._app`) all surfaced during initial verification and were resolved this session. Closure report at `docs/AUDITS/M5_REPORT.md`. |
 
 ---
 
 ## Known Risks
 
-- Model capabilities (Embedding, Reranker, Guardrail, Generation)
+- Source implementation exists at M0/M1/M2/M3/M4 on `main`.
+  Capabilities (Embedding, Reranker, Guardrail, Generation)
   remain capability-based until separate ADRs are written.
 - RAGAS and RBAC release-gate thresholds are not pinned.
 - `uv.lock` from the M0 verification pass is untracked; its
@@ -190,6 +230,10 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
   reach a Postgres. M1 is not claimed verified until the
   verification commands listed in
   `infrastructure/migrations/README.md` succeed end-to-end.
+- M2 verification is developer-side only; the sandbox cannot
+  reach the dev compose. The combined pytest report in the
+  sandbox shows 52 Postgres adapter skips; this is environmental,
+  not a regression.
 
 ---
 

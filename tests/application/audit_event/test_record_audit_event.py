@@ -78,11 +78,32 @@ async def test_rejects_audit_decision_outside_enum(record_use_case, make_cmd):
         await record_use_case(cmd)
 
 
-async def test_rejects_unknown_reason_code_via_persistence_failure(
+async def test_jwt_invalid_reason_code_is_accepted(
+    record_use_case, make_cmd, audit_repo
+):
+    """M5 widening: `jwt_invalid` joins the V1 repository whitelist.
+
+    The seven M0 IMM codes remain unchanged. `jwt_invalid` is
+    appended to the repository's V1-allowed set so M5's
+    `VerifyJwtToken` can persist failure rows.
+    """
+    cmd = make_cmd(
+        reason_code="jwt_invalid",
+        action="auth.jwt.evaluated",
+        decision=AuditDecision.FAILED,
+    )
+    new_id = await record_use_case(cmd)
+    assert new_id > 0
+    events = await audit_repo.find_by_correlation_id("cid-test-01")
+    assert len(events) == 1
+    assert events[0].reason_code == "jwt_invalid"
+    assert events[0].decision == AuditDecision.FAILED
+
+async def test_rejects_truly_unknown_reason_code_via_persistence_failure(
     record_use_case, make_cmd
 ):
-    """M2 repository rejects codes outside the V1-IMM whitelist."""
-    cmd = make_cmd(reason_code="JWT_INVALID")
+    """Whitelist remains fail-closed against codes outside the V1 set."""
+    cmd = make_cmd(reason_code="totally_made_up_code")
     with pytest.raises(PersistenceFailure):
         await record_use_case(cmd)
 

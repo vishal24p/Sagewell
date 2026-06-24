@@ -4,8 +4,14 @@
 
 ## State
 
-Documentation is aligned to the approved V1 architecture. Source
-implementation files are not present yet.
+Source implementation is at milestone M4 (Audit
+Infrastructure) on `main`. Implementation order M0 -> M1 ->
+M2 -> M3 -> M4 has been completed in that order. M3 was
+committed as `fb110bd` and M4 as `03351c4` on `main`, both
+pushed to `origin/main`. M5 (JWT Validation) is the next
+implementation milestone.
+
+Documentation is aligned to the approved V1 architecture.
 
 ## V1 Scope
 
@@ -53,15 +59,16 @@ Out of scope for V1:
 
 ## Current Risks
 
-- No source implementation exists, so there is no executed access
-  decision to compare against the policy.
-- Model capabilities (Embedding, Reranker, Guardrail, Generation) are
-  not pinned. They remain capability-based until separate ADRs are
-  written.
+- Source implementation exists at M0..M4 on `main`. Model
+  capabilities (Embedding, Reranker, Guardrail, Generation)
+  remain capability-based until separate ADRs are written.
 - `pg_search` extension name and version are not pinned.
 - `skills/external/accessibility/SKILL.md` is not present; UI
   accessibility work must report that missing local route before
   falling back to outside installed guidance.
+- M5 architecture decision D-001 locks HS256-only at M5. RS256
+  or JWKS would require an ADR; the JWKS plan from
+  `DECISIONS_PENDING.md` is the canonical next step.
 
 ## Next Implementation Milestones
 
@@ -84,21 +91,35 @@ introduced until all of its dependencies are validated.
    Standalone — no DB, no JWT, no query-answer endpoint, no
    audit/correlation lookup. Launch via
    `uvicorn src.api.app:create_app --factory`.
-5. M4 — Audit Infrastructure. Correlation ID helper, audit writer
-   interface, basic audit event persistence. Builds on the repositories.
-6. M5 — JWT Validation. Validate the JWT, build the actor-loading
-   path (`user_id`, `department`, `clearance`, `role`), and provide
-   the actor as the canonical input to the workflow state. 401 on
-   missing/expired/bad-signature tokens. `audit_logs` row with
-   `reason_code = JWT_INVALID` on every failure.
+5. M4 — Audit Infrastructure. Application-layer audit-intake
+   use case under `src/application/audit_event/`. The use
+   case class `RecordAuditEvent` calls the M2 `AuditLogRepository.append()`
+   port; the seven M0 IMM reason codes are stable. The
+   use case is exercised through tests; the launch contract
+   stays DB-free until M5. M4 ships no middleware and no
+   `/v1/*` routes.
+6. M5 — JWT Validation. The auth application package
+   (`src/application/auth/`) owns the `VerifyJwtToken`
+   use case and the typed-actor projection
+   `{user_id, department, clearance, role, correlation_id}`.
+   A real FastAPI middleware at the API boundary calls
+   `VerifyJwtToken` on every request. HS256-only signer
+   (D-001); no JWKS at M5. Bad/missing/bad-signature tokens
+   return 401 with the canonical error envelope and a
+   `record_audit_event` row carrying
+   `reason_code = JWT_INVALID` (through M4). The launch
+   contract stays DB-free: `create_app(audit_repo=None)`
+   still boots. Tests run against the application package
+   without requiring a DB.
 7. M6 — LangGraph Skeleton. A runnable, empty state machine, actor-
    aware. The state object is typed with `user_id`, `department`,
    `clearance`, `role`, and `correlation_id` from the first test.
    The workflow refuses to start if any of these fields are missing
    (anonymous execution is impossible). The query-answer endpoint
-   that lands at M5/M6 invokes the workflow with a JWT-derived
-   actor. (The M3 route surface itself does NOT invoke any
-   workflow; it is a standalone skeleton.)
+   that lands at M6 invokes the workflow with the JWT-derived
+   actor projected by M5's `VerifyJwtToken`. (The M3/M5 route
+   surface itself does NOT invoke any workflow; it is a standalone
+   skeleton plus the auth middleware.)
 8. M7 — Ingestion. LlamaIndex loads, semantic-chunks, and embeds
    documents. Idempotent on `documents.content_checksum`. Replaced
    chunks are not searchable. Job outcome is written to `audit_logs`.

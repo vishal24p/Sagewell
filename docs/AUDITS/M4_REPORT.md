@@ -5,8 +5,10 @@
 **Scope**: Application-layer audit-intake use-case only. No
 middleware, no test endpoint, no DB at app boot, no request-time
 audit writes.
-**Status (pre-commit)**: implementation complete in working
-tree; tests verified; pending single-commit closure and push.
+**Status**: **CLOSED 2026-06-20** at commit `03351c4` on
+`main` (pushed to `origin/main`).
+**Closure artifact**: this file plus
+`docs/HANDOFF/API_LOCAL_RUN.md`.
 
 ---
 
