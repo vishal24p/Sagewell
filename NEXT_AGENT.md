@@ -12,17 +12,16 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M6 — LangGraph Skeleton (actor-aware).**
+**M7 — Ingestion (LlamaIndex idempotent re-ingestion).**
 
 ## Current Status
 
 **M0 closed on 2026-06-19 (commit `a78e21c`). M1 closed on
 2026-06-19. M2 closed on `main` at `7849d89`. M3 closed at
 `fb110bd`. M4 closed at `03351c4`. All pushed to `origin/main`.
-M5 is closed (this turn) on `rag-langgraph`; the next advisory
-step reviews fast-forward against `main` once verification is
-recorded. M6 (LangGraph Skeleton, actor-aware) is the next
-implementation milestone.**
+M5 is closed on `feat/m5-jwt-validation` (this repo's remote).
+M6 is closed on `feat/m6-langgraph-skeleton` (also this repo's
+remote). M7 (Ingestion) is the next implementation milestone.**
 
 M3 silhouette is the pure API skeleton per the user's reduced
 decision (`GET /health`, `GET /openapi.json`, `GET /docs`,
@@ -42,7 +41,7 @@ M4 silhouette:
   remains DB-free.
 - Combined pytest: 54 passed, 52 sandbox-skips, 0 failed.
 
-M5 silhouette (this turn; closure record at
+M5 silhouette (closure record at
 `docs/AUDITS/M5_REPORT.md`):
 
 - `src/application/auth/` package: `VerifyJwtToken` use case,
@@ -73,74 +72,150 @@ M5 silhouette (this turn; closure record at
 - Findings F-31..F-34 surfaced during verification and were
   resolved in this session.
 
+M6 silhouette (closure record at
+`docs/AUDITS/M6_REPORT.md`):
+
+- `src/application/workflow/` is the third application
+  package, sibling to `src/application/audit_event/` and
+  `src/application/auth/`. It owns the frozen
+  `WorkflowState` dataclass with required fields
+  `{user_id, department, clearance, role, correlation_id}`
+  and an optional `query`. The typed factory
+  `WorkflowState.from_actor(actor)` is the canonical entry;
+  `__post_init__` defends direct constructor use.
+- Typed-error hierarchy: `WorkflowDomainError` (base) →
+  `AnonymousExecutionError` → `IncompleteActorError`.
+- `src/infrastructure/langgraph/workflow.py` binds the
+  typed `WorkflowState` to a LangGraph `StateGraph` channel
+  shape via `build_initial_channel` (typed → channel) and
+  `from_state_dict` (channel → typed). The skeleton graph is
+  `START → noop_node → END`; the noop is identity.
+- `run_workflow(state)` is the async application entrypoint;
+  it rejects non-`WorkflowState` input with
+  `IncompleteActorError`.
+- Combined pytest: **86 passed** (was 73 at M5; net +13 from
+  M6), 52 sandbox-skips, 0 failed.
+- 8 distinct tests at `tests/application/workflow/test_workflow_state.py`
+  + 5 at `tests/infrastructure/langgraph/test_workflow.py`.
+- The M3/M5 API surface is unchanged at M6: no `/v1/*`
+  endpoint. The D-028 forward-hook surface
+  (workflow → api, never api → workflow) is preserved.
+- Finding F-35 (channel-shape vs typed-state split) raised,
+  accepted-Low, and documented in `docs/AUDITS/M6_REPORT.md`.
+
 ---
 
 ## Next Task
 
-The current task is to land **M5 — JWT Validation** on
-`main`:
+The current task is to land **M7 — Ingestion** on a feature
+branch:
 
-- HS256-only signer, no JWKS (D-001). M5 introduces a real
-  signing/verification boundary; pick RS256 or JWKS later.
-- Introduce `src/application/auth/` as a dedicated
-  application package (D-038). The auth package owns the
-  `VerifyJwtToken` use case and the typed-actor projection.
-- Add a FastAPI middleware at the API boundary that calls the
-  `VerifyJwtToken` use case on every request (D-039). Bad or
-  missing tokens produce 401 and a `code=JWT_INVALID` row in
-  `audit_logs` (route through M4's `RecordAuditEvent`).
-- `__main__.py` is updated to construct the pool and pass it
-  to the now-real run-time FastAPI factory.
-- `create_app(audit_repo=None)` keeps accepting the seam; M5
-  additionally accepts `jwt_signer` so token verification is
-  configurable.
+- LlamaIndex loads documents from the connector surface,
+  semantic-chunks, and embeds through a capability-based
+  embedding port (the model ID is owned by settings; no
+  module pins a specific provider / version).
+- Idempotent on `documents.content_checksum`: the same
+  checksum re-applied leaves the `documents` row count
+  unchanged (no duplicate insert; replaced chunks are not
+  readable from the search path until the success audit
+  log is written).
+- Replaced chunks are not searchable. The chunk row is
+  marked `replaced_by` so the search path can exclude it.
+- The job outcome (success / failure / partial) is written
+  to `audit_logs` through the M4 `RecordAuditEvent` use
+  case.
+- Ingestion is exercised in-process; no background worker
+  is introduced at M7.
 
-### How to test (M5 prelude)
+### How to test (M7 prelude)
 
 - `.venv\Scripts\python.exe -m pytest -q tests/api tests/rbac
   tests/infrastructure tests/application` is green.
 - `grep -rE "fastapi|pydantic|uvicorn" src/domain/` returns
   zero rows.
 - `grep -rE "asyncpg|psycopg|sqlalchemy" src/application/
-  src/domain/` returns zero rows (the auth package must
-  import only from ports, not from any DB driver).
+  src/domain/` returns zero rows (the new ingestion ports /
+  use case must import only from `src/domain/ports/`, not
+  from any DB driver).
 
-### How to verify before moving on to M6
+### How to verify before moving on to M8
 
-- The M4 closure record at `docs/AUDITS/M4_REPORT.md` remains
-  accurate.
-- The M5 closure record at `docs/AUDITS/M5_REPORT.md` carries
-  the route + audit-row + JWT-validator behavior, including
-  a typed failure-row that lands through M4's
-  `RecordAuditEvent`.
+- The M5/M6 closure records at `docs/AUDITS/M5_REPORT.md`
+  and `docs/AUDITS/M6_REPORT.md` remain accurate.
+- The M7 closure record at `docs/AUDITS/M7_REPORT.md`
+  carries the idempotence-on-content-checksum evidence,
+  the replaced-chunks are not searchable evidence, and the
+  job-outcome audit row evidence.
 - The launch contract `uvicorn src.api.app:create_app
   --factory` boots an instance with `/health` returning 200
   *without* a DB only when `audit_repo=None` and a dev signing
-  secret is provided. A DB-backed audit row lands for bad
-  tokens when a pool is supplied.
+  secret is provided. M7 does NOT change the launch
+  contract.
+- The combined pytest stays green; the M7 tests add at least
+  one test per guarantee above.
 
 ---
 
 ## Relevant Documents
 
-Read these before starting M5:
+Read these before starting M7:
 
-- `ARCHITECTURE.md` — JWT validation is the first boundary on
-  the primary request path; the workflow state shape is
-  `{user_id, department, clearance, role, correlation_id}`.
-- `DATABASE_SCHEMA.md` — V1 tables, including `users` (with
-  `external_subject`) and `audit_logs`.
-- `POLICIES.md` — JWT requirements, required claims
-  (`subject`, `department`, `clearance`, `expiration`), and
-  audit row on every authentication outcome with
-  `reason_code = JWT_INVALID`.
-- `WORKFLOWS.md` — JWT validation is the first step in the
-  query-and-answer flow; bad tokens return 401 with no
-  generation.
+- `ARCHITECTURE.md` — LlamaIndex is the document-loading,
+  semantic-chunking, ingestion, and retrieval-abstraction
+  boundary. LangGraph owns workflow orchestration.
+- `DATABASE_SCHEMA.md` — V1 tables: `documents` (with
+  `content_checksum`), `chunks`, `audit_logs`,
+  `retrieval_logs`, `evaluation_results`, `users`. The
+  ingestion ports must respect the V1 schema.
+- `POLICIES.md` — Ingestion writes are auditable; an
+  audit row is required for every job outcome.
+- `WORKFLOWS.md` — Ingestion runs outside the request path;
+  it is a background job with a typed outcome.
+- `skills/project/ingestion_pipeline/SKILL.md` — project skill
+  on connector / chunker / embedding boundaries, idempotence,
+  replaced-chunk semantics.
 - `skills/project/database_design/SKILL.md` — schema and
-  constraint invariants for the `users` table.
-- `docs/AUDITS/M4_REPORT.md` — confirms the M4 audit intake
-  is the seam M5 invokes to record token failures.
+  constraint invariants for `documents` and `chunks`.
+- `docs/AUDITS/M5_REPORT.md` — confirms the JWT / actor
+  projection seam that the search path uses to filter
+  candidates; M7 does not change this seam.
+- `docs/AUDITS/M6_REPORT.md` — confirms the typed
+  `WorkflowState` boundary; M7 ingestion runs through the
+  same state machine but is invoked from a background job,
+  not a `/v1/*` route.
+
+---
+
+## Do Not Touch for M7
+
+The M0..M6 "Do Not Touch" lists still apply. Additions for
+M7 are NOT prohibitions against working on M7; they are
+prohibitions against pre-empting M8+ while working on M7:
+
+- Do NOT introduce a background worker, a queue, or a
+  scheduler. M7 ingestion runs in-process; the only
+  side-effect is the database writes.
+- Do NOT alter the M0 IMM reason-code set. M7 introduces
+  ingestion reason codes (`ingestion_succeeded` /
+  `ingestion_failed` / `ingestion_partial`) through the M4
+  audit-intake; these are caller-supplied reason_codes and
+  do not change the M0 seven IMM codes.
+- Do NOT introduce a `/v1/*` endpoint that proxies to
+  ingestion. Ingestion is not request-time surface at M7.
+- Do NOT pivot the access-decision function. M7 has no
+  authorization boundary; ingestion writes documents
+  by content_checksum regardless of actor. The actor is
+  associated with the audit row, not the access decision.
+- Do NOT introduce a vector index hint or a pgvector
+  configuration knob. The vector store lands at M8.
+- Do NOT introduce streaming, SSE, or WebSocket — V1
+  stays request/response.
+- Do NOT introduce CORS, OIDC, Okta, Entra ID, LDAP, or
+  external IAM. The V1 auth path is JWT-only and unchanged
+  from M5.
+- Do NOT introduce multi-tenant concepts, ACL tables, or
+  group/role authorization. These are out of V1 per
+  AGENTS.md.
 
 ---
 

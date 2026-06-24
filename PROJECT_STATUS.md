@@ -1,14 +1,15 @@
 # Project Status
 
-**Date**: 2026-06-19
+**Date**: 2026-06-24
 
 ## State
 
-Source implementation is at milestone M4 (Audit
-Infrastructure) on `main`. Implementation order M0 -> M1 ->
-M2 -> M3 -> M4 has been completed in that order. M3 was
-committed as `fb110bd` and M4 as `03351c4` on `main`, both
-pushed to `origin/main`. M5 (JWT Validation) is the next
+Implementation order M0 -> M1 -> M2 -> M3 -> M4 -> M5 -> M6
+has been completed in that order on a series of feature branches.
+M3-M4-M5 are on `main`. M5 also has a self-contained
+`feat/m5-jwt-validation` branch in the remote repository.
+M6 (LangGraph Skeleton) is closed on a new feature branch
+`feat/m6-langgraph-skeleton`. M7 (Ingestion) is the next
 implementation milestone.
 
 Documentation is aligned to the approved V1 architecture.
@@ -59,9 +60,10 @@ Out of scope for V1:
 
 ## Current Risks
 
-- Source implementation exists at M0..M4 on `main`. Model
-  capabilities (Embedding, Reranker, Guardrail, Generation)
-  remain capability-based until separate ADRs are written.
+- Source implementation exists at M0..M6 on `main` and feature
+  branches. Model capabilities (Embedding, Reranker, Guardrail,
+  Generation) remain capability-based until separate ADRs are
+  written.
 - `pg_search` extension name and version are not pinned.
 - `skills/external/accessibility/SKILL.md` is not present; UI
   accessibility work must report that missing local route before
@@ -69,6 +71,13 @@ Out of scope for V1:
 - M5 architecture decision D-001 locks HS256-only at M5. RS256
   or JWKS would require an ADR; the JWKS plan from
   `DECISIONS_PENDING.md` is the canonical next step.
+- M6 ships an empty LangGraph state machine under
+  `src/infrastructure/langgraph/workflow.py`. The `noop_node`
+  round-trips the typed `WorkflowState` and returns identity.
+  Future milestones (M7-M9) replace the noop with retrieval,
+  rerank, generation, and the access-decision boundaries.
+  No semantic-bearing node runs at M6; M7 introduces the first
+  one (the connector / chunking / embedding node).
 
 ## Next Implementation Milestones
 
@@ -115,11 +124,11 @@ introduced until all of its dependencies are validated.
    aware. The state object is typed with `user_id`, `department`,
    `clearance`, `role`, and `correlation_id` from the first test.
    The workflow refuses to start if any of these fields are missing
-   (anonymous execution is impossible). The query-answer endpoint
-   that lands at M6 invokes the workflow with the JWT-derived
-   actor projected by M5's `VerifyJwtToken`. (The M3/M5 route
-   surface itself does NOT invoke any workflow; it is a standalone
-   skeleton plus the auth middleware.)
+   (anonymous execution is impossible). The M6 milestone ships the
+   empty skeleton (`START -> noop_node -> END`) and **does NOT**
+   mount a `/v1/*` endpoint onto the workflow. The endpoint lands at
+   the milestone that wires the V1 retrieval / guards / generation
+   pipeline (per the implementation sequencing below).
 8. M7 — Ingestion. LlamaIndex loads, semantic-chunks, and embeds
    documents. Idempotent on `documents.content_checksum`. Replaced
    chunks are not searchable. Job outcome is written to `audit_logs`.

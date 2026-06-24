@@ -912,16 +912,57 @@ correlation middleware. 6/6 middleware tests green.
 
 ---
 
-## Summary (updated through M5)
+## Summary (updated through M6)
 
 - Critical: 1 (F-21)
 - High: 10 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22, F-23, F-24, F-25, F-27)
 - Medium: 11 (F-2, F-7, F-9, F-11, F-17, F-20, F-26, F-28, F-29, F-30, F-31)
-- Low: 13 (F-4, F-6, F-10, F-12, F-13, F-15, F-16, F-18, F-19, F-32, F-33, F-34)
+- Low: 14 (F-4, F-6, F-10, F-12, F-13, F-15, F-16, F-18, F-19, F-32, F-33, F-34, F-35, F-29-of-32)
 
-M5 surfaced four new findings (F-31…F-34). F-31 was the most
-significant: a NameError-of-deceiving-shape that produced 500s
-on every non-skip request during initial verification, only
-caught by the middleware test matrix. F-32..F-34 were
-self-contained test/wiring-hygiene items resolved in the same
-session.
+M5 surfaced four new findings (F-31..F-34). F-31 was the most
+significant: a `NameError`-of-deceiving-shape that produced 500s
+on every non-skip request during initial verification. F-32..F-34
+were self-contained test/wiring-hygiene items.
+
+M6 surfaced one new finding (F-35): the langgraph channel-shape
+versus typed-state split is intentional (framework-side mutable
+versus application-side immutable contract), not drift. F-35 is
+accepted at the LOW level and documented in
+`docs/AUDITS/M6_REPORT.md`.
+
+---
+
+## F-35 — M6 Channel-shape vs. typed-state mismatch is intentional, not architectural drift
+
+**Tag**: LOW (architectural hygiene; documented)
+**Location**: `src/infrastructure/langgraph/workflow.py`
+(`_WorkflowChannel` declaration) versus
+`src/application/workflow/state.py` (`WorkflowState`).
+
+**Finding**: The langgraph framework expects the
+`StateGraph` channel to be a `TypedDict` with `total=False` for
+the framework's state-diff machinery. The application package
+declares `WorkflowState` as a frozen dataclass with required
+(non-blankable) fields. The two layers are intentionally not
+collapsed: the channel is framework-side, mutable, and
+intermediate-traversal-friendly; the dataclass is application-
+side, immutable, and contract-binding.
+
+If `WorkflowState` were itself a `TypedDict`, the M6 typed
+contract would lose its `__post_init__`
+`IncompleteActorError` enforcement. If `_WorkflowChannel`
+were `total=True`, the graph would refuse every legitimate
+partial update during traversal.
+
+**Status**: Accepted-Low. Documented in `docs/AUDITS/M6_REPORT.md`
+under "Architectural drift discovered (none new)" and
+"Findings raised during M6 (F-35)". The two layers cooperate
+through `build_initial_channel` (typed -> channel) and
+`from_state_dict` (channel -> typed), with the channel
+projection rebuilt into a typed `WorkflowState` and the typed
+state's `__post_init__` running again at reconstruction time.
+
+**No change planned**. The architectural invariant — the
+application package stays framework-free; the infrastructure
+layer owns the framework binding — is preserved and exercised
+by 13 M6 tests.

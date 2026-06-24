@@ -383,6 +383,68 @@ projection (Approved 2026-06-21)
   prompt-protection, or session management. It does NOT
   perform any DB call.
 
+### D-045 — M6 workflow application package (Approved 2026-06-21)
+
+- **Path**: `src/application/workflow/`. Sibling to
+  `src/application/audit_event/` and `src/application/auth/`.
+  Owns the typed-state dataclass and the typed-failure
+  hierarchy (`WorkflowDomainError` -> `AnonymousExecutionError`
+  -> `IncompleteActorError`). Imports only standard library
+  + intra-application + domain ports.
+
+### D-046 — M6 LangGraph framework-adapter layer (Approved 2026-06-21)
+
+- **Path**: `src/infrastructure/langgraph/`. Adapter
+  binds the application-typed state to a LangGraph
+  StateGraph channel via `build_initial_channel`,
+  `from_state_dict`, `to_state_dict`. The only place in
+  the project that imports `langgraph`.
+
+### D-047 — M6 typed-state dataclass shape (Approved 2026-06-21)
+
+- **Shape**: frozen `WorkflowState` dataclass. Required:
+  `{user_id, department, clearance, role, correlation_id}`.
+  Optional: `query: Optional[str]`.
+- **Construction**: `WorkflowState.from_actor(actor)` is
+  the canonical factory. `__post_init__` raises
+  `IncompleteActorError` on any blank required field,
+  bounding direct-constructor misuse.
+
+### D-048 — M6 application entrypoint (Approved 2026-06-21)
+
+- **Signature**: async `run_workflow(state: WorkflowState) -> WorkflowState`.
+  Rejects non-`WorkflowState` input with `IncompleteActorError`.
+- **Skeleton graph**: `START -> noop_node -> END`. The
+  noop node returns the channel unchanged. Future M7+
+  milestones replace `noop_node` with V1 retrieval /
+  reranking / generation / guard nodes.
+
+### D-049 — M6 application-package import-graph invariants (Approved 2026-06-21)
+
+- **Rule**: The workflow package MUST NOT import
+  `src/api/`, `src/infrastructure/`, `fastapi`,
+  `pydantic`, `uvicorn`, `asyncpg`, `psycopg`,
+  `sqlalchemy`, or any framework SDK. Verified by an
+  AST-based import-statement scan over `src/application/`
+  and `src/domain/`.
+
+### D-050 — M3/M5 API route surface unchanged at M6 (Approved 2026-06-21)
+
+- **Surface**: `/health`, `/openapi.json`, `/docs`,
+  `/redoc` continue to be the API boundary.
+- **No `/v1/*` at M6**: the M6 milestone deliberately does
+  NOT mount a `/v1/*` endpoint; the `/v1/*` endpoint lands
+  at the milestone that wires the V1 retrieval / guards /
+  generation pipeline.
+
+### D-051 — M6 dependency pin (Approved 2026-06-21)
+
+- **Pin**: `langgraph>=0.4,<0.6`. The range matches the
+  V1 "no version pinning beyond the major-minor pair"
+  pattern. M6 does NOT commit to any future
+  `langgraph-prebuilt` / `langgraph-checkpoint` adoption;
+  M9+ may introduce them.
+
 ### D-015 — M2 repository port layout (Approved 2026-06-20)
 
 - **Final layout**: `src/domain/ports/`.
