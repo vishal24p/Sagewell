@@ -40,9 +40,11 @@ small enough for in-process chunking at M7.
 """
 from __future__ import annotations
 
+import logging
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Literal, Optional, Sequence
 
 from src.domain.ports.audit_logs import AuditDecision
 from src.domain.ports.chunks import (
@@ -66,6 +68,10 @@ from src.domain.ports.reason_codes import (
 )
 
 from src.application.audit_event.dto import RecordAuditCommand
+from src.application.audit_event.errors import (
+    AuditEventError,
+    PersistenceFailure,
+)
 from src.application.audit_event.record import RecordAuditEvent
 from src.application.auth.dto import AuthActor
 from src.application.ingestion.checksum import normalize_content_checksum
@@ -75,6 +81,15 @@ from src.application.ingestion.errors import (
     IngestionPipelineError,
     MissingContentError,
 )
+
+
+_log = logging.getLogger(__name__)
+
+
+# Typed reason codes that the success / skip audit path may emit. The
+# "failure" path always emits INGESTION_FAILED; this Literal bounds
+# the only two non-failure outcomes the use case can write.
+_NonFailureOutcome = Literal["ingestion_succeeded", "ingestion_skipped"]
 
 
 class IngestOutcome(str, Enum):
@@ -187,7 +202,17 @@ class IngestDocument:
             raise MissingContentError(
                 "IngestDocument.execute requires non-empty content."
             )
-        correlation_id = command.correlation_id or command.actor.correlation_id
+        # Pick the most-specific correlation_id possible. M5's
+        # AuthActor.correlation_id is the typical source; an explicit
+        # `command.correlation_id` is preferred when supplied (the
+        # connector may have already correlated the job). If both
+        # are blank a fresh UUID4 keeps the audit row traceable to
+        # THIS call rather than being silent.
+        correlation_id = (
+            (command.correlation_id or "").strip()
+            or (command.actor.correlation_id or "").strip()
+            or f"ingest-{uuid.uuid4().hex}"
+        )
         try:
             content_checksum = normalize_content_checksum(command.content)
             upsert_cmd = DocumentUpsertCommand(
@@ -255,7 +280,7 @@ class IngestDocument:
                 was_replaced=upsert_result.was_replaced,
             )
         except IngestionDomainError as exc:
-            await self._emit_failure_audit(
+            await self._safe_emit_failure_audit(
                 command=command,
                 correlation_id=correlation_id,
                 error_code=exc.code,
@@ -263,7 +288,7 @@ class IngestDocument:
             )
             raise
         except (PersistenceError,) as exc:
-            await self._emit_failure_audit(
+            await self._safe_emit_failure_audit(
                 command=command,
                 correlation_id=correlation_id,
                 error_code=IngestionPipelineError.code,
@@ -271,7 +296,7 @@ class IngestDocument:
             )
             raise IngestionPipelineError(str(exc)) from exc
         except Exception as exc:
-            await self._emit_failure_audit(
+            await self._safe_emit_failure_audit(
                 command=command,
                 correlation_id=correlation_id,
                 error_code=IngestionPipelineError.code,
@@ -323,7 +348,7 @@ class IngestDocument:
         *,
         command: IngestDocumentCommand,
         correlation_id: str,
-        outcome: str,
+        outcome: _NonFailureOutcome,
         document_id: int,
         inserted_chunk_count: int,
         retired_chunk_count: int,
@@ -331,17 +356,19 @@ class IngestDocument:
         was_replaced: bool,
         was_unchanged: bool,
     ) -> None:
+        # SKIPPED is a successful idempotence hit (the row already
+        # matches), so its decision is ALLOWED. The reason_code
+        # distinguishes SKIPPED from a fresh INGESTED write. This
+        # is precisely the semantic fix from the M7 audit-row
+        # surface (the prior version emitted DENIED for SKIPPED,
+        # which mis-classified a no-op as an authorization deny).
         await self._record_audit_event(
             RecordAuditCommand(
                 actor_user_id=None,
                 action="ingestion.completed",
                 resource_type="document",
                 resource_id=str(document_id),
-                decision=(
-                    AuditDecision.ALLOWED
-                    if outcome == INGESTION_SUCCEEDED
-                    else AuditDecision.DENIED
-                ),
+                decision=AuditDecision.ALLOWED,
                 reason_code=outcome,
                 correlation_id=correlation_id,
                 metadata={
@@ -387,6 +414,55 @@ class IngestDocument:
                 },
             )
         )
+
+    async def _safe_emit_failure_audit(
+        self,
+        *,
+        command: IngestDocumentCommand,
+        correlation_id: str,
+        error_code: str,
+        message: str,
+    ) -> None:
+        """Failure-path audit-write helper that swallows
+        secondary audit-write failures.
+
+        Per WORKFLOWS.md, an audit-write failure during a
+        request MUST NOT mask the original failure. If the
+        primary ingestion pipeline failed AND the audit-row
+        write also fails (e.g. the audit_logs repository is
+        unreachable), the original `IngestionPipelineError`
+        is what the caller should observe. The secondary
+        failure is logged at WARNING level with the
+        correlation_id so it is visible without
+        masking the primary.
+        """
+        try:
+            await self._emit_failure_audit(
+                command=command,
+                correlation_id=correlation_id,
+                error_code=error_code,
+                message=message,
+            )
+        except (PersistenceFailure, AuditEventError, PersistenceError) as exc:
+            _log.warning(
+                "in_use_case.audit_write_suppressed "
+                "correlation_id=%s error_code=%s secondary_error_type=%s "
+                "secondary_error=%r",
+                correlation_id,
+                error_code,
+                type(exc).__name__,
+                str(exc),
+            )
+        except Exception as exc:  # pragma: no cover — defensive last line
+            _log.warning(
+                "in_use_case.audit_write_suppressed_unexpected "
+                "correlation_id=%s error_code=%s secondary_error_type=%s "
+                "secondary_error=%r",
+                correlation_id,
+                error_code,
+                type(exc).__name__,
+                str(exc),
+            )
 
 
 __all__ = [

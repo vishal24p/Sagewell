@@ -39,6 +39,7 @@ from src.domain.ports.ingestion import (
     EmbeddingModelProtocol,
 )
 from src.domain.ports.clearances import Clearance
+from src.domain.ports.errors import PersistenceError
 
 
 class ExplodingChunker(DocumentChunkerProtocol):
@@ -87,6 +88,14 @@ async def test_ingest_document_same_checksum_skips_on_second_call(
         "ingestion_succeeded",
         "ingestion_skipped",
     ]
+    # The SKIPPED outcome is the idempotence hit, NOT a deny.
+    # The audit row's `decision` must therefore be `allowed`;
+    # the reason_code (`ingestion_skipped`) is the stable
+    # discriminator. (Regression test for the SKIPPED-as-DENIED
+    # bug fixed in M7 follow-up.)
+    skipped_row = audit_rows[1]
+    assert skipped_row.decision.value == "allowed"
+    assert skipped_row.reason_code == "ingestion_skipped"
 
 
 async def test_ingest_document_replaces_chunks_on_different_content(
@@ -167,3 +176,122 @@ async def test_ingest_document_embedding_shape_mismatch_raises(
         IngestionPipelineError,
     )
     assert isinstance(excinfo.value, (EmbeddingShapeMismatchError, IngestionPipelineError))
+
+
+async def test_ingest_document_correlation_id_falls_back_when_both_blank(
+    document_repo, chunk_repo, embedder, audit_repo, actor, record_audit_event
+):
+    """If both `command.correlation_id` and the actor's correlation_id
+    are blank, the use case must generate a fresh UUID starting
+    `ingest-` rather than silently writing an empty-cid audit row.
+    """
+    from src.domain.ports.clearances import Clearance
+    from src.application.ingestion import IngestDocument
+    from src.application.ingestion.ingest import (
+        IngestDocumentCommand,
+    )
+    from tests.application.ingestion.conftest import FixedSizeChunker
+
+    actor_no_cid = type(actor)(
+        user_id=actor.user_id,
+        department=actor.department,
+        clearance=actor.clearance,
+        role=actor.role,
+        correlation_id="",  # blank
+    )
+    use_case = IngestDocument(
+        documents=document_repo,
+        chunks=chunk_repo,
+        chunker=FixedSizeChunker(chunk_size=8),
+        embedder=embedder,
+        record_audit_event=record_audit_event,
+        clearance_enum=Clearance,
+    )
+    command = IngestDocumentCommand(
+        actor=actor_no_cid,
+        source_system="fixture",
+        source_id="doc-m7-cid-fallback",
+        title="CID-fallback",
+        uri=None,
+        department="engineering",
+        required_clearance=Clearance.INTERNAL,
+        content="x" * 32,
+        correlation_id="",  # blank
+    )
+    result = await use_case.execute(command)
+    assert result.outcome is IngestOutcome.INGESTED
+    # The audit row must have a non-blank correlation_id
+    # beginning with "ingest-" (the fresh-UUID fallback marker).
+    matching = [
+        e
+        for e in audit_repo._events
+        if e.resource_id == str(result.document_id)
+    ]
+    assert matching, "expected exactly one matching audit event"
+    audit = matching[0]
+    assert audit.correlation_id.startswith("ingest-")
+    assert len(audit.correlation_id) > len("ingest-")
+
+
+async def test_ingest_document_swallows_secondary_audit_failure(
+    document_repo, chunk_repo, embedder, audit_repo, actor
+):
+    """Regress: a primary pipeline failure must surface even if the
+    failure-path audit write also raises. The use case must NOT
+    mask the original error.
+
+    Set up: the primary pipeline raises (chunker blows up), and
+    the audit recorder blows up too on the failure row. Verify
+    that `_safe_emit_failure_audit` swallows the secondary error
+    while the use case then re-raises the original.
+    """
+    import logging
+
+    from src.application.audit_event.dto import RecordAuditCommand
+    from src.application.audit_event.errors import PersistenceFailure
+    from src.domain.ports.audit_logs import AuditDecision
+    from src.application.ingestion import IngestDocument
+
+    class _ExplodingAuditRecorder:
+        async def __call__(self, cmd: RecordAuditCommand) -> None:
+            raise PersistenceFailure("audit row write failed")
+
+    primary_raises = {"hit": False}
+
+    class PrimaryRaisingChunker(DocumentChunkerProtocol):
+        def chunk(self, text):
+            primary_raises["hit"] = True
+            raise RuntimeError("primary explosion")
+
+    use_case = IngestDocument(
+        documents=document_repo,
+        chunks=chunk_repo,
+        chunker=PrimaryRaisingChunker(),
+        embedder=embedder,
+        record_audit_event=_ExplodingAuditRecorder(),
+        clearance_enum=Clearance,
+    )
+    from src.application.ingestion.ingest import (
+        IngestDocumentCommand,
+    )
+
+    command = IngestDocumentCommand(
+        actor=actor,
+        source_system="fixture",
+        source_id="doc-secondary-audit",
+        title="Title",
+        uri=None,
+        department="engineering",
+        required_clearance=Clearance.INTERNAL,
+        content="some content",
+        correlation_id="corr-m7-secondary",
+    )
+
+    # The primary run raises; with the safe wrapper the call
+    # propagates `IngestionPipelineError`, NOT `PersistenceFailure`.
+    with pytest.raises(IngestionPipelineError):
+        await use_case.execute(command)
+    assert primary_raises["hit"] is True
+    # `_safe_emit_failure_audit` log line is captured at WARNING.
+    # The realistic touch here is that the use case did NOT raise
+    # the secondary audit-write failure into the caller's hands.
