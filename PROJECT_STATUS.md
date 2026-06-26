@@ -1,16 +1,17 @@
 # Project Status
 
-**Date**: 2026-06-24
+**Date**: 2026-06-26
 
 ## State
 
 Implementation order M0 -> M1 -> M2 -> M3 -> M4 -> M5 -> M6
-has been completed in that order on a series of feature branches.
-M3-M4-M5 are on `main`. M5 also has a self-contained
+-> M7 has been completed in that order on a series of feature
+branches. M3-M4-M5 are on `main`; M5 also has a self-contained
 `feat/m5-jwt-validation` branch in the remote repository.
-M6 (LangGraph Skeleton) is closed on a new feature branch
-`feat/m6-langgraph-skeleton`. M7 (Ingestion) is the next
-implementation milestone.
+M6 (LangGraph Skeleton) is closed on a feature branch
+`feat/m6-langgraph-skeleton`. M7 (Ingestion) is closed on
+`feat/m7-ingestion`. M8 (Retrieval with Access Filter) is the
+next implementation milestone.
 
 Documentation is aligned to the approved V1 architecture.
 
@@ -60,7 +61,7 @@ Out of scope for V1:
 
 ## Current Risks
 
-- Source implementation exists at M0..M6 on `main` and feature
+- Source implementation exists at M0..M7 on `main` and feature
   branches. Model capabilities (Embedding, Reranker, Guardrail,
   Generation) remain capability-based until separate ADRs are
   written.
@@ -76,8 +77,13 @@ Out of scope for V1:
   round-trips the typed `WorkflowState` and returns identity.
   Future milestones (M7-M9) replace the noop with retrieval,
   rerank, generation, and the access-decision boundaries.
-  No semantic-bearing node runs at M6; M7 introduces the first
-  one (the connector / chunking / embedding node).
+- M7 ships the placeholder deterministic-hash embedder; the
+  Embedding Model capability is decision-deferred per open
+  question D-002. The LlamaIndex `SentenceSplitter` adapter
+  ships at M7; production-grade embeddings land at the milestone
+  that adopts the Embedding Model capability. M7 introduces
+  zero `/v1/...` endpoints; the use case is exercised through
+  tests. The launch contract stays DB-free at M7.
 
 ## Next Implementation Milestones
 

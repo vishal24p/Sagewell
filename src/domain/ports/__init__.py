@@ -7,6 +7,8 @@ Modules:
     users.py          - User aggregate, status/role enums, UserRepository.
     documents.py      - Document aggregate, DocumentStatus, DocumentRepository.
     chunks.py         - Chunk aggregate, ChunkStatus, ChunkRepository.
+    ingestion.py      - DocumentChunkerProtocol, EmbeddingModelProtocol,
+                        ChunkSegment, DocumentChunk (M7).
     audit_logs.py     - AuditEvent, AuditDecision, AuditLogRepository.
     retrieval_logs.py - RetrievalLog, RetrievalLogRepository.
     evaluation_results.py - EvaluationResult, Suite, EvaluationResultRepository.

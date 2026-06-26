@@ -1,6 +1,6 @@
 # Current State
 
-**Last updated**: 2026-06-21
+**Last updated**: 2026-06-26
 
 This file is a snapshot of repository progress. It is operational,
 not authoritative. For architecture, see `ARCHITECTURE.md`. For the
@@ -38,7 +38,8 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M0..M6 closed. M7 (Ingestion) is the next milestone.**
+**M0..M7 closed. M8 (Retrieval with Access Filter) is the
+next milestone.**
 
 M1 closed on 2026-06-19 after developer-side verification ran
 clean against the remediated code (F-21 image tag, F-22 healthcheck
@@ -67,8 +68,21 @@ route surface is unchanged at M6; no `/v1/*` endpoint lands at M6.
 F-35 (channel-shape vs typed-state split, accepted-Low) raised
 during verification and documented in the closure report.
 
-**Current branch**: `feat/m6-langgraph-skeleton` (M6 commit will
-land here; `main` and `feat/m5-jwt-validation` are untouched).
+M7 closed on 2026-06-26. Closure report at
+`docs/AUDITS/M7_REPORT.md`. Combined pytest 101 passed, 52
+sandbox-skips, 0 failed (net +15 tests from M6). M0 RBAC still
+31/31; M3 tests/api still 13/13; M4 tests/application/audit_event
+still 10/10; M5 tests/application/auth still 10/10; M6
+tests/application/workflow still 8/8; M6
+tests/infrastructure/langgraph still 5/5. The M3/M5/M6 API route
+surface is unchanged at M7; no `/v1/*` endpoint lands at M7.
+F-36 (capability-deferred embedding stub), F-37
+(predicate-vs-Literal reason-code widening), F-38 (typed-error
+slug defaults) accepted-Low and documented in the closure report.
+
+**Current branch**: `feat/m7-ingestion` (M7 commit will
+land here; `main`, `feat/m5-jwt-validation`, and
+`feat/m6-langgraph-skeleton` are untouched).
 
 M3 implementation is complete and committed on 2026-06-20 at
 `fb110bd` (pushed to `origin/main`). The route surface is
@@ -105,6 +119,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | M4 | Audit Infrastructure (application use case only). `src/application/audit_event/RecordAuditEvent` use case; 10 distinct passing tests; launch contract stays DB-free until M5. Closure commit `03351c4` on `main`. | 2026-06-20 |
 | M5 | JWT Validation. `src/application/auth/` (VerifyJwtToken + HS256 signer + typed-actor projection); `src/api/middleware/auth.py` pure-ASGI JWT middleware; `create_app(jwt_signer=...)` DI seam; `__main__` reads `SAGEWELL_JWT_SECRET`. Bad tokens return 401 and a `reason_code=jwt_invalid` audit row through M4's `RecordAuditEvent`. `/health`, `/docs`, `/redoc` skip the middleware; `/openapi.json` is JWT-protected. Combined pytest 73 passed, 52 sandbox-skips, 0 failed. Closure report at `docs/AUDITS/M5_REPORT.md`; findings F-31..F-34 surfaced and resolved during verification. | 2026-06-21 |
 | M6 | LangGraph Skeleton (actor-aware). `src/application/workflow/` ships the frozen `WorkflowState` dataclass (required: `user_id`, `department`, `clearance`, `role`, `correlation_id`; optional: `query`) with the `from_actor` typed factory and `__post_init__` fail-closed invariant. Typed-error hierarchy (`WorkflowDomainError` -> `AnonymousExecutionError` -> `IncompleteActorError`) at `src/application/workflow/errors.py`. `src/infrastructure/langgraph/workflow.py` binds the typed state to a LangGraph channel (`_WorkflowChannel` TypedDict with `total=False`) and ships the empty skeleton graph (`START -> noop_node -> END`) plus the async `run_workflow(state)` application entrypoint. Combined pytest 86 passed, 52 sandbox-skips, 0 failed. The M3/M5 API route surface is unchanged at M6; no `/v1/*` endpoint lands at M6. Closure report at `docs/AUDITS/M6_REPORT.md`; finding F-35 (channel-shape vs typed-state split, accepted-Low) documented. | 2026-06-21 |
+| M7 | Ingestion (LlamaIndex, idempotent on `documents.content_checksum`). `src/application/ingestion/IngestDocument` use case with `IngestDocumentCommand` / `IngestDocumentResult` / `IngestOutcome` typed projections. Idempotent on `documents.content_checksum` (same checksum -> `SKIPPED`; different checksum -> retires prior active chunks + inserts freshly-chunked drafts in a single transaction). Job outcome is recorded in `audit_logs` through M4's `RecordAuditEvent`. `src/domain/ports/ingestion.py` introduces `DocumentChunkerProtocol` + `EmbeddingModelProtocol`. `src/infrastructure/ingestion/chunker.py` ships the LlamaIndex `SentenceSplitter` adapter; `src/infrastructure/ingestion/embedding.py` ships the deterministic-hash 1536-dim stub (capability-deferred). `reason_codes` widens with three ingestion outcome codes; the `ReasonCode` Literal stays narrowed (D-044 carried forward). `pyproject.toml` adds `llama-index-core>=0.13,<0.15`. Combined pytest 101 passed (was 86), 52 sandbox-skips, 0 failed. The M3/M5/M6 API surface is unchanged; no `POST /v1/ingest` endpoint lands here. Closure report at `docs/AUDITS/M7_REPORT.md`; findings F-36..F-38 accepted-Low. | 2026-06-26 |
 
 ### Completed In Documentation
 
@@ -123,7 +138,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description | Owner | Started |
 |---|---|---|---|
-| (none) | M0..M6 closed; M7 (Ingestion) is up next on a new feature branch (`feat/m7-ingestion` once staged). | (none assigned) | (not started) |
+| (none) | M0..M7 closed; M8 (Retrieval with Access Filter) is up next on a new feature branch (`feat/m8-retrieval` once staged). | (none assigned) | (not started) |
 
 ---
 
@@ -138,6 +153,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | 2026-06-20 | M4 — Audit Infrastructure (application use case only) implemented and committed at `03351c4` on `main` (pushed to `origin/main`). `src/application/audit_event/record.py` ships the `RecordAuditEvent` use case with a `Clock` Protocol, `RecordAuditCommand` DTO, `AuditEventId` newtype, and `AuditEventError` / `PersistenceFailure(AuditEventError)`. `src/api/app.py` accepts an optional `audit_repo` parameter (no `pool` parameter, no asyncpg import). D-029..D-037 locked: M4 ships no middleware, no test endpoint, no automatic request-time audit writes; `__main__.py` continues to launch DB-free. `tests/application/audit_event/` lands 10 distinct passing tests. Combined pytest: 54 passed, 52 sandbox-skips, 0 failed; M0 RBAC still 31/31, M3 tests/api still 13/13. Closure record at `docs/AUDITS/M4_REPORT.md`. |
 | 2026-06-21 | M5 — JWT Validation implemented on `rag-langgraph`. `src/application/auth/` ships the `VerifyJwtToken` use case with a `Clock` Protocol, `VerifyJwtTokenCommand` DTO, typed-failure hierarchy (`AuthFailure` + `JwtMissing`/`JwtMalformed`/`JwtBadSignature`/`JwtExpired`/`JwtInvalid`), `AuthActor` projection, `HS256JwtSigner` implementing the `JwtSigner` Protocol (PyJWT 2.x + manual `exp`-against-clock), and the `UNKNOWN_USER_ACTOR` typed failure carrier. `src/api/middleware/auth.py` is a pure-ASGI JWT middleware that runs `VerifyJwtToken` on every request, skips `{"/health", "/docs", "/redoc"}`, and translates failures to the canonical `{code, message, correlation_id}` 401 envelope. `create_app(jwt_signer=...)` mounts the auth middleware; `__main__` reads `SAGEWELL_JWT_SECRET` and constructs `HS256JwtSigner`. Reason-code whitelist at `src/domain/ports/reason_codes.py` widens to include `jwt_invalid` (the `ReasonCode` Literal stays narrowed to the seven M0 codes so the access-decision output shape is preserved). Combined pytest 73 passed, 52 sandbox-skips, 0 failed. M0 RBAC still 31/31, M3 tests/api still 13/13, M4 application tests still 10/10. F-31 (NameError on `verify_jwt` from middleware dispatchers), F-32 (FastAPI 422 from unannounced `request` parameter), F-33 (PyJWT InsecureKeyLengthWarning on sub-32-byte secrets), and F-34 (state lookup via `scope["app"]` rather than `self._app`) all surfaced and were resolved this session. Closure record at `docs/AUDITS/M5_REPORT.md`. |
 | 2026-06-21 | M6 — LangGraph Skeleton (actor-aware) implemented on `feat/m6-langgraph-skeleton`. `src/application/workflow/` package ships the frozen `WorkflowState` dataclass with required `{user_id, department, clearance, role, correlation_id}` and optional `query`, plus the `from_actor` typed factory and `__post_init__` fail-closed invariant. Typed-error hierarchy (`WorkflowDomainError` -> `AnonymousExecutionError` -> `IncompleteActorError`) at `src/application/workflow/errors.py`. `src/infrastructure/langgraph/workflow.py` is the only place that imports `langgraph`; it ships `build_initial_channel`, `from_state_dict`, `to_state_dict`, `build_skeleton_graph` (empty `START -> noop_node -> END`), and the async `run_workflow(state)` application entrypoint. Dependency: `langgraph>=0.4,<0.6` added to `pyproject.toml`. 13 new tests across `tests/application/workflow/` (8) and `tests/infrastructure/langgraph/` (5). Combined pytest 86 passed (was 73; +13), 52 sandbox-skips, 0 failed. The M3/M5 API route surface is unchanged at M6; no `/v1/*` endpoint lands here. D-028 forward-hook rule preserved (workflow -> api, never api -> workflow). F-35 (channel-shape vs typed-state split, accepted-Low) documented in the closure report. Closure record at `docs/AUDITS/M6_REPORT.md`. |
+| 2026-06-26 | M7 — Ingestion (LlamaIndex, idempotent on `documents.content_checksum`) implemented on `feat/m7-ingestion`. `src/application/ingestion/IngestDocument` use case carries typed `IngestDocumentCommand` / `IngestDocumentResult` / `IngestOutcome` projections and the typed-error hierarchy. Same content_checksum -> `IngestOutcome.SKIPPED` and audit `ingestion_skipped` row; different content_checksum -> `INGESTED` and audit `ingestion_succeeded` row (with `inserted_chunk_count`, `retired_chunk_count`, `was_inserted`, `was_replaced` in metadata); pipeline failure -> `IngestionPipelineError` and audit `ingestion_failed` row. M7 repository writes: `DocumentRepository.upsert_by_source` returning `DocumentUpsertResult`; `ChunkRepository.replace_for_document` returning `ChunkReplaceResult`. Postgres adapter wraps both inside `conn.transaction()` so a mid-call failure rolls back side-effects entirely. M7 ports: `src/domain/ports/ingestion.py` introduces `DocumentChunkerProtocol` + `EmbeddingModelProtocol` (framework-free). M7 adapters: `src/infrastructure/ingestion/chunker.py` (LlamaIndex `SentenceSplitter`-backed) and `src/infrastructure/ingestion/embedding.py` (deterministic-hash 1536-dim stub, capability-deferred per open question D-002). M7 reason codes: `ingestion_succeeded` / `ingestion_skipped` / `ingestion_failed` widen `_ALLOWED_REASON_CODES`; the strict `ReasonCode` Literal stays narrowed (D-044 carried forward). Dependency: `llama-index-core>=0.13,<0.15` added to `pyproject.toml`. 15 new tests across `tests/application/ingestion/` (6), `tests/infrastructure/ingestion/` (4), and `tests/infrastructure/repositories/test_documents_m7_upsert.py` (5). Combined pytest 101 passed (was 86; +15), 52 sandbox-skips, 0 failed. The M3/M5/M6 API route surface is unchanged at M7; no `POST /v1/ingest` endpoint lands here. F-36 (capability-deferred embedding stub), F-37 (predicate-vs-Literal reason-code widening), F-38 (typed-error slug defaults) all raised during verification and accepted-Low. Closure record at `docs/AUDITS/M7_REPORT.md`. |
 
 ---
 
@@ -145,7 +161,6 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description |
 |---|---|
-| M7 | Ingestion. |
 | M8 | Retrieval with Access Filter. |
 | M9 | Workflow Wiring with Citations. |
 | M10 | Regex Guard. |
@@ -222,16 +237,29 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 | 2026-06-21 | D-050 locked: the M3/M5 route surface is unchanged at M6. `/health`, `/openapi.json`, `/docs`, `/redoc` continue to be the API boundary. M6 deliberately does NOT mount a `/v1/*` endpoint; the `/v1/*` endpoint lands at the milestone that wires the V1 retrieval / guards / generation pipeline. |
 | 2026-06-21 | D-051 locked: M6 widens the dependency surface by adding `langgraph>=0.4,<0.6` to `pyproject.toml`'s runtime dependencies. The range matches the V1 "no version pinning beyond the major-minor pair" pattern. M6 does NOT commit to any future `langgraph-prebuilt` / `langgraph-checkpoint` adoption; M9+ may introduce them. |
 | 2026-06-21 | M6 closed on `feat/m6-langgraph-skeleton` (not yet pushed to `main`). F-35 (channel-shape vs typed-state split, intentional two-layer separation: framework-side mutable channel + application-side immutable dataclass) raised during verification and accepted-Low per `docs/AUDITS/M6_REPORT.md`. Closure report at `docs/AUDITS/M6_REPORT.md`. Combined pytest 86 passed, 52 sandbox-skips, 0 failed. |
+| 2026-06-26 | D-052 locked: M7 ships `src/application/ingestion/` as a fourth application-package sibling to `audit_event/`, `auth/`, and `workflow/`. The package owns the `IngestDocument` use case, the typed-command / typed-result / IngestOutcome projections, the typed-error hierarchy, and the `normalize_content_checksum` helper. Imports only stdlib + intra-application + domain ports. |
+| 2026-06-26 | D-053 locked: M7 introduces `src/domain/ports/ingestion.py` with two new framework-free protocols (`DocumentChunkerProtocol`, `EmbeddingModelProtocol`) returning `Sequence[ChunkSegment]` and `list[float]` of length `EMBEDDING_DIM`. Application package imports the protocols only; concrete adapters live under `src/infrastructure/ingestion/`. |
+| 2026-06-26 | D-054 locked: M7 widens the application-side repositories with two write methods (`DocumentRepository.upsert_by_source`, `ChunkRepository.replace_for_document`). Postgres adapter runs both inside a transaction so mid-call failures roll back side-effects entirely. |
+| 2026-06-26 | D-055 locked: M7 `IngestDocument` is idempotent on `documents.content_checksum`. Same content re-issued against the same `(source_system, source_id)` returns `IngestOutcome.SKIPPED`; different checksum retires + inserts a fresh chunk set; pipeline failure raises `IngestionPipelineError`. Each branch emits one audit row with the matching reason code. |
+| 2026-06-26 | D-056 locked: the three new ingestion reason codes extend `_ALLOWED_REASON_CODES`; the strict `ReasonCode` Literal stays narrowed to the seven M0 codes. The M5 / D-044 rule is carried forward unchanged. |
+| 2026-06-26 | D-057 locked: `llama-index-core>=0.13,<0.15` is added to `pyproject.toml`'s runtime dependencies. Embedding Model SDK is intentionally not pinned at M7; open question D-002 owns capability adoption. The chunker adapter pulls `SentenceSplitter` lazily. |
+| 2026-06-26 | D-058 locked: M3/M5/M6 API route surface is unchanged at M7. `/health`, `/openapi.json`, `/docs`, `/redoc` continue to be the API boundary. The `IngestDocument` use case is exercised through tests; zero `/v1/...` endpoints land here. |
+| 2026-06-26 | D-059 locked: content-checksum normalization strips CRLF/CR to LF, collapses 3+ blank lines, trims trailing whitespace per line, sha256-hex over the resulting UTF-8 bytes. Same content with Windows / Unix / Mac line endings yields the same checksum. The helper is parametrized by `hash_fn` so tests may inject a deterministic stub. |
+| 2026-06-26 | D-060 locked: `src/application/ingestion/` imports only stdlib, intra-application (`audit_event`, `auth`), and `src/domain/ports/`. The package does NOT import anything under `src/api/`, `src/infrastructure/`, `fastapi`, `pydantic`, `uvicorn`, `asyncpg`, `psycopg`, `sqlalchemy`, `langgraph`, `llama_index`, or any framework SDK. Verified by AST-based import-statement scan. |
+| 2026-06-26 | M7 closed on `feat/m7-ingestion` (not yet pushed to `main`). F-36 (capability-deferred embedding stub), F-37 (predicate-vs-Literal reason-code widening), F-38 (typed-error slug defaults) raised during verification and accepted-Low per `docs/AUDITS/M7_REPORT.md`. Closure report at `docs/AUDITS/M7_REPORT.md`. Combined pytest 101 passed (was 86 at M6; net +15), 52 sandbox-skips, 0 failed. |
 
 ---
 
 ## Known Risks
 
-- Source implementation exists at M0..M6 on `main` and a
+- Source implementation exists at M0..M7 on `main` and a
   series of feature branches (`feat/m5-jwt-validation`,
-  `feat/m6-langgraph-skeleton`). Capabilities (Embedding,
-  Reranker, Guardrail, Generation) remain capability-based
-  until separate ADRs are written.
+  `feat/m6-langgraph-skeleton`, `feat/m7-ingestion`).
+  Capabilities (Embedding, Reranker, Guardrail, Generation)
+  remain capability-based until separate ADRs are written.
+- M7 ships a placeholder deterministic-hash embedder; the
+  V1 Embedding Model capability is decision-deferred per
+  open question D-002.
 - RAGAS and RBAC release-gate thresholds are not pinned.
 - `uv.lock` from the M0 verification pass is untracked; its
   disposition is deferred until repository hygiene is revisited

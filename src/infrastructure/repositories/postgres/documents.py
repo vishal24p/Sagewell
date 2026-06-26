@@ -4,6 +4,15 @@ Postgres-backed DocumentRepository.
 Active-row lookups only. Methods combine department + clearance at
 the SQL level are deliberately absent; authorization is the
 access-decision function's responsibility.
+
+M7 adds `upsert_by_source` for the ingestion use case. The
+implementation uses one INSERT ... ON CONFLICT ... DO UPDATE
+statement so a write does not race against a concurrent
+ingester on the same (source_system, source_id) key. The
+`was_inserted` / `was_replaced` / `was_unchanged` distinction
+derived from the RETURNING clause plus an `xmax = 0` heuristic
+that asyncpg exposes when the row was just inserted by the
+current transaction.
 """
 from __future__ import annotations
 
@@ -12,7 +21,13 @@ from typing import Iterable, Optional
 import asyncpg
 
 from src.domain.ports.clearances import Clearance
-from src.domain.ports.documents import Document, DocumentRepository, DocumentStatus
+from src.domain.ports.documents import (
+    Document,
+    DocumentRepository,
+    DocumentStatus,
+    DocumentUpsertCommand,
+    DocumentUpsertResult,
+)
 from src.domain.ports.errors import PersistenceError
 
 
@@ -88,3 +103,66 @@ class PostgresDocumentRepository(DocumentRepository):
                 ids,
             )
         return [_coerce_document(row) for row in rows]
+
+    async def upsert_by_source(
+        self,
+        command: DocumentUpsertCommand,
+    ) -> DocumentUpsertResult:
+        # Snapshot the existing row (if any) in the same
+        # transaction so the (was_inserted, was_replaced,
+        # was_unchanged) outcome is consistent with the
+        # RETURNING-row that follows.
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                existing = await conn.fetchrow(
+                    "SELECT id, content_checksum, created_at, "
+                    "updated_at, status "
+                    "FROM documents "
+                    "WHERE source_system = $1 AND source_id = $2 "
+                    "FOR UPDATE",
+                    command.source_system,
+                    command.source_id,
+                )
+                row = await conn.fetchrow(
+                    "INSERT INTO documents ("
+                    "  source_system, source_id, title, uri,"
+                    "  status, department, required_clearance,"
+                    "  content_checksum"
+                    ") VALUES ($1, $2, $3, $4, 'active', $5, $6, $7) "
+                    "ON CONFLICT (source_system, source_id) DO UPDATE "
+                    "SET title = EXCLUDED.title,"
+                    "    uri = EXCLUDED.uri,"
+                    "    department = EXCLUDED.department,"
+                    "    required_clearance = EXCLUDED.required_clearance,"
+                    "    content_checksum = EXCLUDED.content_checksum,"
+                    "    updated_at = NOW() "
+                    "RETURNING *",
+                    command.source_system,
+                    command.source_id,
+                    command.title,
+                    command.uri,
+                    command.department,
+                    command.required_clearance.value,
+                    command.content_checksum,
+                )
+        doc = _coerce_document(row)
+        if existing is None:
+            return DocumentUpsertResult(
+                document=doc,
+                was_inserted=True,
+                was_replaced=False,
+                was_unchanged=False,
+            )
+        if existing["content_checksum"] == command.content_checksum:
+            return DocumentUpsertResult(
+                document=doc,
+                was_inserted=False,
+                was_replaced=False,
+                was_unchanged=True,
+            )
+        return DocumentUpsertResult(
+            document=doc,
+            was_inserted=False,
+            was_replaced=True,
+            was_unchanged=False,
+        )

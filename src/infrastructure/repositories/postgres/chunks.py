@@ -4,14 +4,28 @@ Postgres-backed ChunkRepository.
 Active-row lookups only. BM25 / dense similarity lives in M8.
 The pgvector codec is registered by the pool's init callback, so
 the `embedding` column round-trips as `list[float] | None`.
+
+M7 adds `replace_for_document` for the ingestion use case. The
+implementation runs inside a single transaction so a mid-call
+failure cannot leave partially active rows: every previously-
+active chunk for the document_id retires with a single UPDATE
+statement, the fresh rows insert with one parameterized
+multi-row INSERT, and Postgres guarantees either both happen
+or neither does.
 """
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Sequence
 
 import asyncpg
 
-from src.domain.ports.chunks import Chunk, ChunkRepository, ChunkStatus
+from src.domain.ports.chunks import (
+    Chunk,
+    ChunkDraft,
+    ChunkRepository,
+    ChunkReplaceResult,
+    ChunkStatus,
+)
 from src.domain.ports.errors import PersistenceError
 
 
@@ -78,3 +92,72 @@ class PostgresChunkRepository(ChunkRepository):
                 document_id,
             )
         return int(value or 0)
+
+    async def replace_for_document(
+        self,
+        document_id: int,
+        drafts: Sequence[ChunkDraft],
+    ) -> ChunkReplaceResult:
+        retired_ids: list[int] = []
+        inserted_chunks: list[Chunk] = []
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                # Step 1: retire every active chunk for this
+                # document. The retired row id list lets the caller
+                # emit observability rows (M12 will reuse this).
+                retired_rows = await conn.fetch(
+                    "UPDATE chunks SET status = 'retired' "
+                    "WHERE document_id = $1 AND status = 'active' "
+                    "RETURNING id",
+                    document_id,
+                )
+                retired_ids = [row["id"] for row in retired_rows]
+                # Step 2: insert fresh active chunks via a single
+                # multi-row INSERT using UNNEST on the typed columns.
+                # The pgvector asyncpg codec handles the `embedding`
+                # parameter as `vector`; we hand the list[float]
+                # straight through.
+                if not drafts:
+                    return ChunkReplaceResult(
+                        retired_chunk_ids=tuple(retired_ids),
+                        inserted_chunks=tuple(),
+                    )
+                doc_ids = [draft.document_id for draft in drafts]
+                ordinals = [draft.ordinal for draft in drafts]
+                texts = [draft.text for draft in drafts]
+                text_searches = [draft.text_search for draft in drafts]
+                embeddings = [draft.embedding for draft in drafts]
+                metadatas = [
+                    (draft.metadata if draft.metadata else {})
+                    for draft in drafts
+                ]
+                token_counts = [draft.token_count for draft in drafts]
+                inserted = await conn.fetch(
+                    "INSERT INTO chunks ("
+                    "  document_id, ordinal, text, text_search,"
+                    "  embedding, metadata, token_count, status"
+                    ") "
+                    "SELECT * FROM UNNEST("
+                    "  $1::bigint[], $2::int[], $3::text[],"
+                    "  $4::text[], $5::vector[],"
+                    "  $6::jsonb[], $7::int[]"
+                    ") AS t("
+                    "  document_id, ordinal, text, text_search,"
+                    "  embedding, metadata, token_count"
+                    ") "
+                    "RETURNING *",
+                    doc_ids,
+                    ordinals,
+                    texts,
+                    text_searches,
+                    embeddings,
+                    metadatas,
+                    token_counts,
+                )
+                for row in inserted:
+                    inserted_chunks.append(_coerce_chunk(row))
+        inserted_chunks.sort(key=lambda c: c.ordinal)
+        return ChunkReplaceResult(
+            retired_chunk_ids=tuple(retired_ids),
+            inserted_chunks=tuple(inserted_chunks),
+        )

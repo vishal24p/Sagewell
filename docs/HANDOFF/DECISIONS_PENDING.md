@@ -445,6 +445,110 @@ projection (Approved 2026-06-21)
   `langgraph-prebuilt` / `langgraph-checkpoint` adoption;
   M9+ may introduce them.
 
+### D-052 — M7 ingestion application package (Approved 2026-06-26)
+
+- **Path**: `src/application/ingestion/`. Sibling to
+  `src/application/audit_event/`, `src/application/auth/`,
+  and `src/application/workflow/`. Owns the `IngestDocument`
+  use case, the typed `IngestDocumentCommand` /
+  `IngestDocumentResult` / `IngestOutcome` projections,
+  the typed-error hierarchy
+  (`IngestionDomainError` -> `IngestionPipelineError`,
+  `MissingContentError`, `EmbeddingShapeMismatchError`),
+  and the `normalize_content_checksum` helper. Imports
+  only stdlib + intra-application + domain ports; never
+  any framework adapter.
+
+### D-053 — M7 chunker / embedder ports (Approved 2026-06-26)
+
+- **Path**: `src/domain/ports/ingestion.py`. New
+  framework-free protocols
+  (`DocumentChunkerProtocol`, `EmbeddingModelProtocol`)
+  carrying `Sequence[ChunkSegment]` and `list[float]
+  of length EMBEDDING_DIM`. Application-package
+  imports the protocols only; concrete adapters live
+  under `src/infrastructure/ingestion/`.
+
+### D-054 — M7 repository write methods (Approved 2026-06-26)
+
+- **Additions**: `DocumentRepository.upsert_by_source`
+  returning `DocumentUpsertResult` (with
+  `was_inserted` / `was_replaced` / `was_unchanged`
+  flags), and `ChunkRepository.replace_for_document`
+  returning `ChunkReplaceResult` (retired_chunk_ids
+  + inserted_chunks). Postgres adapter runs both
+  writes inside a transaction so mid-call failures
+  cannot leave partially active rows.
+
+### D-055 — M7 `IngestDocument` outcome contract (Approved 2026-06-26)
+
+- **Outcomes**:
+  - `IngestOutcome.SKIPPED` for same content_checksum
+    on the same `(source_system, source_id)` key;
+    audit row reason code is `ingestion_skipped`.
+  - `IngestOutcome.INGESTED` for the path that
+    retires prior chunks and inserts the freshly-
+    chunked drafts; audit row reason code is
+    `ingestion_succeeded`. The row's metadata carries
+    `inserted_chunk_count`, `retired_chunk_count`,
+    `was_inserted`, `was_replaced`.
+  - `IngestOutcome.FAILED` (translated to raised
+    `IngestionPipelineError`) when the pipeline raises
+    any typed or untyped exception; audit row
+    reason code is `ingestion_failed`.
+
+### D-056 — M7 reason-code widening in the predicate only (Approved 2026-06-26)
+
+- **Rule**: `_ALLOWED_REASON_CODES` widens with three
+  ingestion outcome codes
+  (`ingestion_succeeded`, `ingestion_skipped`,
+  `ingestion_failed`). The `ReasonCode` Literal stays
+  narrowed to the seven M0 codes because the
+  access-decision pure function's output shape is
+  preserved. The M5 / D-044 rule is carried forward
+  unchanged.
+
+### D-057 — M7 dependency surface (Approved 2026-06-26)
+
+- **Pin**: `llama-index-core>=0.13,<0.15`. The range
+  matches the V1 "no version pinning beyond the
+  major-minor pair" pattern. The LlamaIndex chunker
+  import is lazy so a sandbox without LlamaIndex does
+  not pay the import cost at module load. The
+  Embedding Model SDK is intentionally not pinned at
+  M7; open question D-002 is the canonical
+  capability-deferred entry.
+
+### D-058 — M3/M5/M6 route surface unchanged at M7 (Approved 2026-06-26)
+
+- **Rule**: `/health`, `/openapi.json`, `/docs`,
+  `/redoc` continue to be the API boundary. M7 ships
+  zero `/v1/...` routes. The `IngestDocument` use
+  case is exercised through tests; the launch
+  contract `uvicorn src.api.app:create_app
+  --factory` continues to work DB-free.
+
+### D-059 — M7 content-checksum normalization (Approved 2026-06-26)
+
+- **Algorithm**: strip CRLF/CR to LF, collapse 3+
+  blank lines to a single blank line, trim trailing
+  whitespace per line, sha256-hex over the resulting
+  UTF-8 bytes. The same content with Windows / Unix
+  / Mac line endings yields the same checksum. The
+  helper is parametrized by `hash_fn` so tests may
+  inject a deterministic stub.
+
+### D-060 — M7 application-layer import-graph invariants (Approved 2026-06-26)
+
+- **Rule**: `src/application/ingestion/` imports only
+  stdlib, intra-application (`audit_event`, `auth`),
+  and `src/domain/ports/`. The package does NOT
+  import anything under `src/api/`,
+  `src/infrastructure/`, fastapi, pydantic, uvicorn,
+  asyncpg, psycopg, sqlalchemy, langgraph, or any
+  framework SDK. Verified by an AST-based
+  import-statement scan.
+
 ### D-015 — M2 repository port layout (Approved 2026-06-20)
 
 - **Final layout**: `src/domain/ports/`.

@@ -48,6 +48,12 @@ ACCESS_DECISION_ALLOWED = "allowed"
 JWT_INVALID = "jwt_invalid"
 
 
+# Reason codes emitted by the M7 ingestion application layer.
+INGESTION_SUCCEEDED = "ingestion_succeeded"
+INGESTION_SKIPPED = "ingestion_skipped"
+INGESTION_FAILED = "ingestion_failed"
+
+
 # Reason codes emitted by the access-decision pure function. The
 # M5 `jwt_invalid` extension is intentionally NOT in this literal;
 # the literal bounds the access-decision's output shape, not the
@@ -76,6 +82,9 @@ _ALLOWED_REASON_CODES: frozenset[str] = frozenset({
     "clearance_insufficient",
     "allowed",
     "jwt_invalid",
+    "ingestion_succeeded",
+    "ingestion_skipped",
+    "ingestion_failed",
 })
 
 
@@ -85,8 +94,9 @@ def is_allowed_reason_code(value: str) -> bool:
     The repository's V1-allowed set is the union of the seven M0
     imm codes plus any reason codes introduced by their owning
     milestones. M5 introduces `jwt_invalid` for the JWT validation
-    path; the function returns True for that code at every
-    adapter boundary.
+    path; M7 introduces three ingestion outcome codes. The
+    function returns True for all of these at every adapter
+    boundary.
     """
     return value in _ALLOWED_REASON_CODES
 

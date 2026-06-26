@@ -12,7 +12,7 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M7 — Ingestion (LlamaIndex idempotent re-ingestion).**
+**M8 — Retrieval with Access Filter.**
 
 ## Current Status
 
@@ -20,8 +20,9 @@ Documents" before doing anything.
 2026-06-19. M2 closed on `main` at `7849d89`. M3 closed at
 `fb110bd`. M4 closed at `03351c4`. All pushed to `origin/main`.
 M5 is closed on `feat/m5-jwt-validation` (this repo's remote).
-M6 is closed on `feat/m6-langgraph-skeleton` (also this repo's
-remote). M7 (Ingestion) is the next implementation milestone.**
+M6 is closed on `feat/m6-langgraph-skeleton`. M7 is closed on
+`feat/m7-ingestion`. M8 (Retrieval with Access Filter) is the
+next implementation milestone.**
 
 M3 silhouette is the pure API skeleton per the user's reduced
 decision (`GET /health`, `GET /openapi.json`, `GET /docs`,
@@ -93,9 +94,8 @@ M6 silhouette (closure record at
 - `run_workflow(state)` is the async application entrypoint;
   it rejects non-`WorkflowState` input with
   `IncompleteActorError`.
-- Combined pytest: **86 passed** (was 73 at M5; net +13 from
-  M6), 52 sandbox-skips, 0 failed.
-- 8 distinct tests at `tests/application/workflow/test_workflow_state.py`
+- Combined pytest: 86 passed, 52 sandbox-skips, 0 failed.
+  8 distinct tests at `tests/application/workflow/test_workflow_state.py`
   + 5 at `tests/infrastructure/langgraph/test_workflow.py`.
 - The M3/M5 API surface is unchanged at M6: no `/v1/*`
   endpoint. The D-028 forward-hook surface
@@ -103,111 +103,133 @@ M6 silhouette (closure record at
 - Finding F-35 (channel-shape vs typed-state split) raised,
   accepted-Low, and documented in `docs/AUDITS/M6_REPORT.md`.
 
+M7 silhouette (closure record at
+`docs/AUDITS/M7_REPORT.md`):
+
+- `src/application/ingestion/` is the fourth application
+  package, sibling to `audit_event/`, `auth/`, and `workflow/`.
+  It owns the `IngestDocument` use case with typed
+  `IngestDocumentCommand` / `IngestDocumentResult` /
+  `IngestOutcome` projections.
+- Outcome contract: `SKIPPED` (same content_checksum),
+  `INGESTED` (retires prior active chunks + inserts fresh
+  drafts), `FAILED` (raises `IngestionPipelineError`).
+  Each branch emits one audit row through M4's
+  `RecordAuditEvent` with the matching reason code.
+- `src/domain/ports/ingestion.py` introduces two
+  framework-free protocols (`DocumentChunkerProtocol`,
+  `EmbeddingModelProtocol`).
+- `src/infrastructure/ingestion/chunker.py` ships a
+  LlamaIndex `SentenceSplitter`-backed adapter (lazy
+  import); `src/infrastructure/ingestion/embedding.py`
+  ships the deterministic-hash 1536-dim stub
+  (capability-deferred per open question D-002).
+- M7 repository writes: `DocumentRepository.upsert_by_source`
+  + `ChunkRepository.replace_for_document`. Postgres
+  adapter runs both inside `conn.transaction()` so a
+  mid-call failure rolls back side-effects entirely.
+- `pyproject.toml` adds `llama-index-core>=0.13,<0.15`.
+- 15 new tests across `tests/application/ingestion/` (6),
+  `tests/infrastructure/ingestion/` (4), and
+  `tests/infrastructure/repositories/test_documents_m7_upsert.py` (5).
+- Combined pytest: 101 passed (was 86; +15), 52
+  sandbox-skips, 0 failed. The M3/M5/M6 API surface is
+  unchanged at M7; no `POST /v1/ingest` endpoint lands here.
+- Findings F-36..F-38 (capability-deferred embedding
+  stub, predicate-vs-Literal reason-code widening,
+  typed-error slug defaults) raised and accepted-Low.
+
 ---
 
 ## Next Task
 
-The current task is to land **M7 — Ingestion** on a feature
-branch:
+The current task is to land **M8 — Retrieval with
+Access Filter** on a feature branch:
 
-- LlamaIndex loads documents from the connector surface,
-  semantic-chunks, and embeds through a capability-based
-  embedding port (the model ID is owned by settings; no
-  module pins a specific provider / version).
-- Idempotent on `documents.content_checksum`: the same
-  checksum re-applied leaves the `documents` row count
-  unchanged (no duplicate insert; replaced chunks are not
-  readable from the search path until the success audit
-  log is written).
-- Replaced chunks are not searchable. The chunk row is
-  marked `replaced_by` so the search path can exclude it.
-- The job outcome (success / failure / partial) is written
-  to `audit_logs` through the M4 `RecordAuditEvent` use
-  case.
-- Ingestion is exercised in-process; no background worker
-  is introduced at M7.
+- Four retrieval stages are developed one at a time:
+  Dense (pgvector cosine), BM25 (pg_search), RRF fusion,
+  cross-encoder rerank.
+- Every stage is paired with the access-decision pure
+  function from M0 from the first test. Pre-retrieval
+  SQL filter and post-rerank drop are exercised as part
+  of M8, not as a separate phase.
+- The retrieval adapters live under
+  `src/infrastructure/retrieval/{dense,bm25,rrf,reranker}/`
+  with framework-free ports under `src/domain/ports/`.
+- The M7 ingestion use case is the dataset; M8 reads from
+  the chunks ingested at M7.
 
-### How to test (M7 prelude)
+### How to test (M8 prelude)
 
 - `.venv\Scripts\python.exe -m pytest -q tests/api tests/rbac
   tests/infrastructure tests/application` is green.
 - `grep -rE "fastapi|pydantic|uvicorn" src/domain/` returns
   zero rows.
-- `grep -rE "asyncpg|psycopg|sqlalchemy" src/application/
-  src/domain/` returns zero rows (the new ingestion ports /
-  use case must import only from `src/domain/ports/`, not
-  from any DB driver).
+- `grep -rE "asyncpg|psycopg|sqlalchemy|llama_index|langgraph"`
+  in `src/application/` or `src/domain/` returns zero rows.
+  The retrieval ports must import framework-free; framework
+  adapters live under `src/infrastructure/retrieval/`.
 
-### How to verify before moving on to M8
+### How to verify before moving on to M9
 
-- The M5/M6 closure records at `docs/AUDITS/M5_REPORT.md`
-  and `docs/AUDITS/M6_REPORT.md` remain accurate.
 - The M7 closure record at `docs/AUDITS/M7_REPORT.md`
-  carries the idempotence-on-content-checksum evidence,
-  the replaced-chunks are not searchable evidence, and the
-  job-outcome audit row evidence.
-- The launch contract `uvicorn src.api.app:create_app
-  --factory` boots an instance with `/health` returning 200
-  *without* a DB only when `audit_repo=None` and a dev signing
-  secret is provided. M7 does NOT change the launch
-  contract.
-- The combined pytest stays green; the M7 tests add at least
+  remains accurate.
+- The M8 closure record at `docs/AUDITS/M8_REPORT.md`
+  carries the four-stage retrieval evidence (dense +
+  BM25 + RRF + cross-encoder), the access-decision
+  pre-filter + post-rerank drop evidence, and the
+  retrieval_logs write-through evidence (the latter
+  is M8 partial; the M12 milestone completes the
+  retrieval_logs surface).
+- Combined pytest stays green; M8 tests add at least
   one test per guarantee above.
 
 ---
 
 ## Relevant Documents
 
-Read these before starting M7:
+Read these before starting M8:
 
-- `ARCHITECTURE.md` — LlamaIndex is the document-loading,
-  semantic-chunking, ingestion, and retrieval-abstraction
-  boundary. LangGraph owns workflow orchestration.
-- `DATABASE_SCHEMA.md` — V1 tables: `documents` (with
-  `content_checksum`), `chunks`, `audit_logs`,
-  `retrieval_logs`, `evaluation_results`, `users`. The
-  ingestion ports must respect the V1 schema.
-- `POLICIES.md` — Ingestion writes are auditable; an
-  audit row is required for every job outcome.
-- `WORKFLOWS.md` — Ingestion runs outside the request path;
-  it is a background job with a typed outcome.
-- `skills/project/ingestion_pipeline/SKILL.md` — project skill
-  on connector / chunker / embedding boundaries, idempotence,
-  replaced-chunk semantics.
+- `ARCHITECTURE.md` — Retrieval is hybrid. All four
+  stages are mandatory. The access-decision pure function
+  is invoked pre-retrieval, post-rerank, and at citation
+  verification (the third boundary lands at M9).
+- `DATABASE_SCHEMA.md` — V1 tables: `users`, `documents`,
+  `chunks` (with `vector(1536)` embedding), `audit_logs`,
+  `retrieval_logs`. The M8 dense retrieval adapter targets
+  the `chunks_embedding_idx` HNSW index.
+- `POLICIES.md` — The access decision is a single pure
+  function invoked at every boundary. M8 introduces the
+  pre-retrieval boundary + post-rerank boundary.
+- `WORKFLOWS.md` — The query-and-answer flow runs
+  retrieval stages 6..9 with pre-filter applied; the
+  rerank-and-drop step runs at stage 10. M8 covers the
+  retrieval side; M9 wires the workflow to mount this.
+- `skills/project/retrieval_engine/SKILL.md` — pipeline
+  shape, RRF K constant, access-decision enforcement
+  points.
 - `skills/project/database_design/SKILL.md` — schema and
-  constraint invariants for `documents` and `chunks`.
-- `docs/AUDITS/M5_REPORT.md` — confirms the JWT / actor
-  projection seam that the search path uses to filter
-  candidates; M7 does not change this seam.
-- `docs/AUDITS/M6_REPORT.md` — confirms the typed
-  `WorkflowState` boundary; M7 ingestion runs through the
-  same state machine but is invoked from a background job,
-  not a `/v1/*` route.
+  index invariants for `documents` and `chunks`.
+- `docs/AUDITS/M7_REPORT.md` — confirms the ingestion
+  surface that M8 consumes (the chunks inserted by
+  M7's `IngestDocument` are the dataset).
 
 ---
 
-## Do Not Touch for M7
+## Do Not Touch for M8
 
-The M0..M6 "Do Not Touch" lists still apply. Additions for
-M7 are NOT prohibitions against working on M7; they are
-prohibitions against pre-empting M8+ while working on M7:
+The M0..M7 "Do Not Touch" lists still apply. Additions for
+M8 are NOT prohibitions against working on M8; they are
+prohibitions against pre-empting M9+ while working on M8:
 
-- Do NOT introduce a background worker, a queue, or a
-  scheduler. M7 ingestion runs in-process; the only
-  side-effect is the database writes.
-- Do NOT alter the M0 IMM reason-code set. M7 introduces
-  ingestion reason codes (`ingestion_succeeded` /
-  `ingestion_failed` / `ingestion_partial`) through the M4
-  audit-intake; these are caller-supplied reason_codes and
-  do not change the M0 seven IMM codes.
-- Do NOT introduce a `/v1/*` endpoint that proxies to
-  ingestion. Ingestion is not request-time surface at M7.
-- Do NOT pivot the access-decision function. M7 has no
-  authorization boundary; ingestion writes documents
-  by content_checksum regardless of actor. The actor is
-  associated with the audit row, not the access decision.
-- Do NOT introduce a vector index hint or a pgvector
-  configuration knob. The vector store lands at M8.
+- Do NOT introduce a query-time workflow mount on a
+  `/v1/*` route. Retrieval is exercised through tests;
+  the query-time workflow wiring lands at M9.
+- Do NOT pivot the M0 access-decision pure function. M8
+  calls the function unchanged.
+- Do NOT introduce a vector-index hint or a pgvector
+  configuration knob beyond what the M1 schema already
+  defines.
 - Do NOT introduce streaming, SSE, or WebSocket — V1
   stays request/response.
 - Do NOT introduce CORS, OIDC, Okta, Entra ID, LDAP, or
@@ -216,6 +238,10 @@ prohibitions against pre-empting M8+ while working on M7:
 - Do NOT introduce multi-tenant concepts, ACL tables, or
   group/role authorization. These are out of V1 per
   AGENTS.md.
+- Do NOT pin a specific embedding / reranker provider
+  in code. The embedding capability stays open question
+  D-002; the reranker capability stays open question
+  D-003. M8 ships capability-shaped ports.
 
 ---
 

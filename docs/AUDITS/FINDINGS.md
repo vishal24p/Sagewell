@@ -912,12 +912,12 @@ correlation middleware. 6/6 middleware tests green.
 
 ---
 
-## Summary (updated through M6)
+## Summary (updated through M7)
 
 - Critical: 1 (F-21)
 - High: 10 (F-1, F-3, F-5, F-8 [doc-side], F-14 [doc-side], F-22, F-23, F-24, F-25, F-27)
 - Medium: 11 (F-2, F-7, F-9, F-11, F-17, F-20, F-26, F-28, F-29, F-30, F-31)
-- Low: 14 (F-4, F-6, F-10, F-12, F-13, F-15, F-16, F-18, F-19, F-32, F-33, F-34, F-35, F-29-of-32)
+- Low: 17 (F-4, F-6, F-10, F-12, F-13, F-15, F-16, F-18, F-19, F-32, F-33, F-34, F-35, F-36, F-37, F-38, F-29-of-32)
 
 M5 surfaced four new findings (F-31..F-34). F-31 was the most
 significant: a `NameError`-of-deceiving-shape that produced 500s
@@ -929,6 +929,23 @@ versus typed-state split is intentional (framework-side mutable
 versus application-side immutable contract), not drift. F-35 is
 accepted at the LOW level and documented in
 `docs/AUDITS/M6_REPORT.md`.
+
+M7 surfaced three new findings (F-36, F-37, F-38). All three are
+documented in `docs/AUDITS/M7_REPORT.md` and accepted at the
+LOW level:
+
+  - F-36 — the deterministic-hash embedding stub is a placeholder
+    pending the Embedding Model capability (open question D-002);
+    production-shaped embeddings land at the milestone that adopts
+    the capability.
+  - F-37 — the M7 reason-code widening lives in the
+    `_ALLOWED_REASON_CODES` predicate, NOT in the `ReasonCode`
+    Literal; the literal stays narrowed to the seven M0 codes
+    (D-044 carried forward).
+  - F-38 — the typed-error slug defaults to `"ingestion_failed"`
+    on the base exception; each subclass overrides the slug so the
+    audit row's `metadata["error_code"]` carries a stable
+    app-domain-side identifier.
 
 ---
 
@@ -966,3 +983,43 @@ state's `__post_init__` running again at reconstruction time.
 application package stays framework-free; the infrastructure
 layer owns the framework binding — is preserved and exercised
 by 13 M6 tests.
+
+---
+
+## F-36 -- M7 embedding stub ships as placeholder pending the Embedding Model capability
+
+**Tag**: LOW (capability-deferred; documented)
+**Location**: src/infrastructure/ingestion/embedding.py (DeterministicHashEmbeddingModel).
+
+**Finding**: M7 ships a deterministic-hash embedding stub as the canonical implementation of the V1 EmbeddingModelProtocol. The stub produces a reproducible 1536-dim vector from any input text via per-dimension sha256. The capability is intentionally not pinned at M7 -- the Embedding Model capability is open question D-002; the embedding SDK lands at the milestone that adopts the capability (a future M8 / M11 milestone per PROJECT_STATUS.md).
+
+**Status**: Accepted-Low. Documented in docs/AUDITS/M7_REPORT.md under Findings raised during M7 (F-36). The stub is capability-shaped; production wiring (i.e. the future __main__ / runtime hook) swaps the constructor inside the application module's runtime wiring without touching the application package. The application use case IngestDocument imports the protocol only; capability swapping is local to the adapter layer.
+
+**No change planned at M7**. Capability adoption is open question D-002 and is owned by a future milestone.
+
+---
+
+## F-37 -- M7 reason-code widening in the predicate, not the Literal (D-044 carried forward)
+
+**Tag**: LOW (architectural hygiene; documented)
+**Location**: src/domain/ports/reason_codes.py (_ALLOWED_REASON_CODES).
+
+**Finding**: M7 extends the V1-allowed reason-codes set with three ingestion outcome codes (ingestion_succeeded, ingestion_skipped, ingestion_failed). The strict ReasonCode Literal stays narrowed to the seven M0 codes because the access-decision pure function's output shape is preserved. The widening lives in _ALLOWED_REASON_CODES: frozenset[str] and is queried via is_allowed_reason_code(value), which the audit-log repository enforces at append time.
+
+**Status**: Accepted-Low. Documented in docs/AUDITS/M7_REPORT.md under Findings raised during M7 (F-37). The M5/D-044 rule (ReasonCode Literal stays narrow; predicate accumulates new V1 codes) is preserved and exercised by the M7 ingestion use-case tests, which assert that the audit rows land with eason_code in {ingestion_succeeded, ingestion_skipped, ingestion_failed}.
+
+**No change planned**. New V1 codes continue to extend the predicate, not the literal.
+
+---
+
+## F-38 -- M7 IngestionDomainError.code defaults to ingestion_failed so each subclass can override the slug
+
+**Tag**: LOW (typed-error hygiene; documented)
+**Location**: src/application/ingestion/errors.py.
+
+**Finding**: The base IngestionDomainError exception carries a class attribute code: str = ingestion_failed`. Every concrete subclass (IngestionPipelineError, MissingContentError, EmbeddingShapeMismatchError) overrides the slug so the audit row's metadata[error_code] carries a stable, fine-grained id without the application code knowing about exception-subtype switches. The use case's _emit_failure_audit line writes metadata[error_code] = exc.code directly; tests assert on the slug (e.g. embedding_shape_mismatch) rather than on the message text. This is the same pattern the M5 auth package uses for JwtMissing / JwtMalformed / etc. -- class-attribute slugs are stable identifiers that ride across translation.
+
+**Status**: Accepted-Low. Documented in docs/AUDITS/M7_REPORT.md under Findings raised during M7 (F-38). The pattern is intentionally consistent with the M5 auth-error hierarchy: typed-failure slugs are the canonical audit-row identifiers at every future boundary (/v1/... ingest / /v1/... query).
+
+**No change planned**.
+
