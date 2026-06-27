@@ -4,7 +4,7 @@
 
 ## State
 
-**V1 implementation complete.** All milestones M0..M14 closed on a series of feature branches, all pushed to `origin` (verified via `git ls-remote --heads origin`).
+**V1 implementation complete.** All milestones M0..M14 closed on a series of feature branches, all pushed to `origin` (verified via `git ls-remote --heads origin`). **M15** (real-corpus end-to-end pipeline test) closed on `feat/m15-real-corpus` on top of V1 - exercises M7 ingestion → M8 retrieval → M9 citation-verification against the on-disk `en/` corpus (kubernetes/website English localization tree, ~3386 markdown files / 84.64 MB). The corpus directory is intentionally NOT pushed; `.gitignore` preserves the rule. M15 does not change architecture, schema, or workflow-state shape; it exercises what V1 already shipped.
 
 - M0 (RBAC pure function) - closed 2026-06-19 on `main` (`a78e21c`).
 - M1 (Engineering remediation + migrations + indexes) - closed 2026-06-19 on `main`.
@@ -21,8 +21,9 @@
 - M12 (Audit + Retrieval Logs complete) - closed 2026-06-26 on `feat/m12-logs-complete`.
 - M13 (RAGAS capability port, D-006) - closed 2026-06-26 on `feat/m13-ragas`.
 - M14 (End-to-end Hardening + Release Gate) - closed 2026-06-26 on `feat/m14-hardening`.
+- **M15 (Real-Corpus End-to-End Pipeline Test)** - closed 2026-06-27 on `feat/m15-real-corpus`. Real-corpus pipeline test exercising M7→M8→M9 against the on-disk `en/` corpus.
 
-Combined pytest: **166 passed, 52 sandbox-skips, 0 failed**. Release-gate test surface: `tests/release_gate/` (launch-contract + envelope + M10-refusal + full-stack-smoke + end-to-end RBAC Access Outcome Suite). The launch contract boots DB-free end-to-end on `uvicorn src.api.app:create_app --factory`.
+Combined pytest: **195 passed, 52 sandbox-skips, 0 failed**. Release-gate test surface: `tests/release_gate/` (launch-contract + envelope + M10-refusal + full-stack-smoke + end-to-end RBAC Access Outcome Suite + M15 real-corpus pipeline). The launch contract boots DB-free end-to-end on `uvicorn src.api.app:create_app --factory`.
 
 Documentation is aligned to the approved V1 architecture. Open questions D-001..D-006 (JWT readiness / Embedding Model / Reranker Model / Guardrail Model / Generation Model / RAGAS SDK) own their own out-of-V1 adoption milestones; each requires its own ADR per `docs/HANDOFF/DECISIONS_PENDING.md`.
 

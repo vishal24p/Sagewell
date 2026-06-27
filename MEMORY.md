@@ -149,6 +149,7 @@ Sagewell V1. Architecture decision records live in `docs/adr/`.
   deployment commands.
 - The access decision is a single pure function invoked at every
   boundary (pre-retrieval, post-rerank, citation verification).
+| 2026-06-27 | M15 real-corpus end-to-end pipeline test added on `feat/m15-real-corpus`. The fixture walks the on-disk `en/` corpus (kubernetes/website English localization tree, ~3386 .md files) and exercises M7 ingestion -> M8 retrieval -> M9 citation verification end-to-end against real markdown. The corpus is intentionally NOT committed (.gitignore); the V1 launch contract remains DB-free and uses the canonical M7->M9 use cases. No architectural decision, schema change, or workflow-state shape changed. Kits are reasoned-by-Ponytail: smallest fixture code, full launch-contract preservation, real-corpus conformance through the canonical use cases. Combined pytest 195 passed (was 190 at M14-test-fixup; net +5 from M15), 52 sandbox-skips, 0 failed.
 
 ## Open Questions
 

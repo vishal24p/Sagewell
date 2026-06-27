@@ -49,3 +49,13 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+# Real-data corpora
+# The `en/` and `website-main/` trees are real data, not code.
+# They are intentionally NOT pushed to the repository; the
+# M15 release-gate test reads them locally through the
+# REAL_CORPUS_DIR env var (default: <repo>/en).
+#
+# Adding more corpora here: keep the rule above this comment.
+en/
+website-main/
