@@ -38,8 +38,7 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M0..M8 closed. M9 (Workflow Wiring with Citations) is the
-next milestone.**
+**M0..M9 closed. M10 (Regex Guard) is the next milestone.**
 
 M1 closed on 2026-06-19 after developer-side verification ran
 clean against the remediated code (F-21 image tag, F-22 healthcheck
@@ -96,10 +95,10 @@ ParadeDB defaults), F-40 (candidate rebuild for projection
 observability) accepted-Low and documented in the closure
 report.
 
-**Current branch**: `feat/m8-retrieval` (M8 commit lands
-here; `main`, `feat/m5-jwt-validation`,
-`feat/m6-langgraph-skeleton`, and `feat/m7-ingestion` are
-untouched).
+**Current branch**: `feat/m9-workflow-citations` (M9 commit
+lands here; `main`, `feat/m5-jwt-validation`,
+`feat/m6-langgraph-skeleton`, `feat/m7-ingestion`, and
+`feat/m8-retrieval` are untouched).
 
 M3 implementation is complete and committed on 2026-06-20 at
 `fb110bd` (pushed to `origin/main`). The route surface is
@@ -156,7 +155,7 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 | Milestone | Description | Owner | Started |
 |---|---|---|---|
-| (none) | M0..M8 closed; M9 (Workflow Wiring with Citations) is up next on a new feature branch (`feat/m9-workflow-citations` once staged). | (none assigned) | (not started) |
+| (none) | M0..M9 closed; M10 (Regex Guard) is up next on a new feature branch (`feat/m10-regex-guard` once staged). | (none assigned) | (not started) |
 
 ---
 
@@ -177,11 +176,12 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 ---
 
+| M9 | Workflow Wiring with Citations. src/domain/ports/citations.py introduces the Citation typed contract. src/application/citations/verify.py ships the VerifyCitations orchestrator (third M0 invocation per AGENTS.md Architectural Guardrails) - applies decide(user, document) once per citation; drops every citation whose document fails the access decision. Returns VerifyCitationsResult with (allowed_citations, dropped_citations, total); typed errors (EmptyCitationsError, CitationDecisionUnavailableError). src/infrastructure/langgraph/run_query.py wires the M8 retrieval orchestrator + M9 verifier onto a typed LangGraph state machine (ingest_query -> retrieve_authorized -> verify_citations -> mint_response). The /v1/query route ships at src/api/routers/query.py; reads the typed AuthActor placed by the M5 JWT middleware, builds WorkflowState.from_actor(actor, query=...), calls app.state.run_query(state). Missing actor returns 401; blank query returns 400; missing run_query returns 503. 12 new tests across tests/application/citations/test_verify_citations.py (6), tests/api/test_v1_query_route.py (4), and tests/infrastructure/langgraph/test_run_query_workflow.py (2). Combined pytest 130 passed (was 118 at M8), 52 sandbox-skips, 0 failed. M0 pure-function invocation count: 3 per round-trip (pre-filter projection, post-rerank drop, citation verification). F-41 (DB-free launch contract shifts shape with run_query DI seam) accepted-Low. Closure report at docs/AUDITS/M9_report.md. | 2026-06-26 |
+
 ## Not Started
 
 | Milestone | Description |
 |---|---|
-| M9 | Workflow Wiring with Citations. |
 | M10 | Regex Guard. |
 | M11 | LLM Guard. |
 | M12 | Audit and Retrieval Logs (complete). |
@@ -316,4 +316,4 @@ Source of truth: `PROJECT_STATUS.md` M0-M14.
 
 Update this file when a milestone starts, completes, or blocks.
 Keep entries concise. Do not duplicate the milestone descriptions
-that already live in `PROJECT_STATUS.md`.
+that already live in `PROJECT_STATUS.md`.| 2026-06-26 | M9 - Workflow Wiring with Citations implemented on feat/m9-workflow-citations. src/domain/ports/citations.py introduces the Citation typed contract (chunk_id, document_id, ordinal, quote, optional document_projection). src/application/citations/verify.py ships the VerifyCitations orchestrator as the third M0 access-decision invocation per AGENTS.md Architectural Guardrails; applies decide(user, document) once per citation; returns VerifyCitationsResult with (allowed_citations, dropped_citations, total). Ttyped errors: EmptyCitationsError (400-class), CitationDecisionUnavailableError (503-class). src/infrastructure/langgraph/run_query.py wires the M8 retrieval orchestrator + M9 verifier onto a typed LangGraph state machine (ingest_query -> retrieve_authorized -> verify_citations -> mint_response); constructor-injected dependencies. /v1/query route ships at src/api/routers/query.py; reads the typed AuthActor placed by the M5 JWT middleware; builds WorkflowState.from_actor(actor, query=...); calls app.state.run_query(state). Missing actor returns 401, blank query returns 400, missing run_query returns 503; full envelope on 200. 12 new tests across tests/application/citations/test_verify_citations.py (6), tests/api/test_v1_query_route.py (4), and tests/infrastructure/langgraph/test_run_query_workflow.py (2). OpenAPI route-surface guard widened to (/health, /v1/query). Combined pytest 130 passed (was 118 at M8 closure; net +12 from M9), 52 sandbox-skips, 0 failed. The M0 pure-function invocation count is now 3 per round-trip (pre-filter projection, post-rerank drop, citation verification); the verifier never re-implements the access rule. Closure record at docs/AUDITS/M9_report.md; finding F-41 (DB-free launch contract shifts shape with run_query DI seam) accepted-Low.

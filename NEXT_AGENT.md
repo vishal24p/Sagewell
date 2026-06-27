@@ -12,7 +12,7 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M9 — Workflow Wiring with Citations.**
+**M10 — Regex Guard.**
 
 ## Current Status
 
@@ -22,8 +22,8 @@ Documents" before doing anything.
 M5 is closed on `feat/m5-jwt-validation` (this repo's remote).
 M6 is closed on `feat/m6-langgraph-skeleton`. M7 is closed on
 `feat/m7-ingestion`. M8 is closed on `feat/m8-retrieval`. M9
-(Workflow Wiring with Citations) is the next implementation
-milestone.**
+is closed on `feat/m9-workflow-citations`. M10 (Regex Guard)
+is the next implementation milestone.**
 
 M3 silhouette is the pure API skeleton per the user's reduced
 decision (`GET /health`, `GET /openapi.json`, `GET /docs`,

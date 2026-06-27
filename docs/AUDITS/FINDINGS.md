@@ -1041,3 +1041,12 @@ by 13 M6 tests.
 **Finding**: The post-rerank drop re-builds RetrievalCandidate to attach the resolved document_projection so observability rows and downstream boundaries can read it without a documents-port round-trip. RetrievalCandidate is a frozen dataclass so the rebuild is a fresh allocation per survivor. The cost is negligible at top_n <= 8 (the M9 production cap); a hot-path optimization (mutating the candidate or caching the projection) lands at the framework-adapter or future SQL coercion layer. The current cost is observed by the M8 application tests; no M8 benchmark regression is recorded.
 
 **Status**: Accepted-Low. Documented in docs/AUDITS/M8_REPORT.md under Findings raised during M8 (F-40). No change planned at M8; the optimization lives outside the application boundary.
+
+## F-41 -- M9 launch contract shape shifts with the run_query DI seam
+
+**Tag**: LOW (DB-free launch contract; documented)
+**Location**: src/api/app.py, src/api/protocols.py.
+
+**Finding**: At M9 the API factory create_app(...) accepts an optional un_query callable. When the runtime is launched without DI the API still boots and /health continues to work, but /v1/query returns 503 (typed service_unavailable envelope). With DI the route returns 200 + JSON envelope. The launch contract stays DB-free because the run_query callable may be a stub in production tests; the M9 orchestrator entrypoint lives outside the API boundary.
+
+**Status**: Accepted-Low. Documented in docs/AUDITS/M9_REPORT.md under Findings raised during M9 (F-41). The DI seam enables future M11/M12 capability-adoption milestones to attach generation + audit writes without touching the application boundary.

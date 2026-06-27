@@ -752,6 +752,78 @@ anked=tuple() and stats.zeros().
   `ValueError`. Tie-break is deterministic
   by `(document_id ASC, chunk_id ASC)`.
 
+
+### D-072 -- M9 Citation port (Approved 2026-06-26)
+
+- **Path**: src/domain/ports/citations.py. Typed
+  Citation shape (chunk_id, document_id, ordinal,
+  quote, optional document_projection). The pure
+  function receives the projection directly when
+  adapters pre-populate it.
+
+### D-073 -- M9 VerifyCitations orchestrator (Approved 2026-06-26)
+
+- **Path**: src/application/citations/verify.py.
+  Async VerifyCitations use case with typed
+  VerifyCitationsCommand + VerifyCitationsResult
+  + DroppedCitation. Invokes decide(user, document)
+  once per citation and never re-implements the rule.
+
+### D-074 -- M9 fail-closed semantics (Approved 2026-06-26)
+
+- **Rule**: Missing actor clearance cascades to
+  missing_user_clearance. Missing document cascades
+  to missing_document_department or
+  missing_document_clearance via the M0 pure
+  function. Unrecognized non-blank actor clearance
+  raises CitationDecisionUnavailableError (503-class
+  at the workflow boundary).
+
+### D-075 -- M9 EmptyCitationsError (Approved 2026-06-26)
+
+- **Rule**: Empty VerifyCitations.execute invocation
+  raises EmptyCitationsError (code empty_citations).
+  400-class input validation failure.
+
+### D-076 -- M9 RunQueryWorkflow LangGraph (Approved 2026-06-26)
+
+- **Path**: src/infrastructure/langgraph/run_query.py.
+  Wires RetrieveAuthorizedCandidates (M8) and
+  VerifyCitations (M9) onto a typed LangGraph state
+  machine: ingest_query -> retrieve_authorized ->
+  verify_citations -> mint_response.
+  Constructor-injected dependencies.
+
+### D-077 -- M9 /v1/query route (Approved 2026-06-26)
+
+- **Path**: src/api/routers/query.py. Reads the
+  typed AuthActor placed by the M5 JWT middleware;
+  builds WorkflowState.from_actor(actor, query=...);
+  calls app.state.run_query(state). Missing actor
+  returns 401; blank query returns 400; missing
+  run_query returns 503. Typed JSON envelope on 200.
+  Typed via RunQueryFn Protocol at
+  src/api/protocols.py.
+
+### D-078 -- M9 DI seam run_query (Approved 2026-06-26)
+
+- **Path**: create_app(..., run_query=None). Without
+  DI the API boots but /v1/query returns 503; with
+  DI the route returns 200 + envelope. DB-free launch
+  contract preserved.
+
+### D-079 -- M9 OpenAPI route-surface guard (Approved 2026-06-26)
+
+- **Rule**: tests/api/test_openapi.py widens the
+  strict M3 guard to /health, /v1/query only.
+
+### D-080 -- M9 D-028 forward-hook preserved (Approved 2026-06-26)
+
+- **Rule**: src/api/routers/query.py imports the
+  workflow package; the workflow package does NOT
+  import anything under src/api/. Verified by AST
+  scan.
+
 ## Rejected
 
 (none yet)

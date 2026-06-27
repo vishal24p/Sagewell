@@ -9,6 +9,10 @@ Modules:
     chunks.py         - Chunk aggregate, ChunkStatus, ChunkRepository.
     ingestion.py      - DocumentChunkerProtocol, EmbeddingModelProtocol,
                         ChunkSegment, DocumentChunk (M7).
+    citations.py      - Citation (M9).
+    retrieval.py      - AccessPolicyFilter, RetrievalQuery, RetrievalCandidate,
+                        RankedCandidate, RetrievalStageStats, retrieval ports
+                        (M8).
     audit_logs.py     - AuditEvent, AuditDecision, AuditLogRepository.
     retrieval_logs.py - RetrievalLog, RetrievalLogRepository.
     evaluation_results.py - EvaluationResult, Suite, EvaluationResultRepository.

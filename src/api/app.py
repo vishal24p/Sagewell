@@ -46,13 +46,16 @@ from fastapi import FastAPI
 from src.api.errors import register_exception_handlers
 from src.api.middleware.auth import JwtAuthMiddleware
 from src.api.middleware.correlation import CorrelationIdMiddleware
+from src.api.protocols import RunQueryFn
 from src.api.routers.health import router as health_router
+from src.api.routers.query import router as query_router
 
 
 def create_app(
     *,
     audit_repo: Optional["AuditLogRepository"] = None,
     jwt_signer: Optional["JwtSigner"] = None,
+    run_query: Optional["RunQueryFn"] = None,
 ) -> FastAPI:
     """Build and configure the V1 API.
 
@@ -79,6 +82,9 @@ def create_app(
     if audit_repo is not None:
         app.state.audit_repo = audit_repo
 
+    if run_query is not None:
+        app.state.run_query = run_query
+
     if jwt_signer is not None:
         from src.application.auth.verify_jwt import VerifyJwtToken
         from src.application.audit_event.clock import SystemClock
@@ -100,4 +106,5 @@ def create_app(
     app.add_middleware(CorrelationIdMiddleware)
     register_exception_handlers(app)
     app.include_router(health_router)
+    app.include_router(query_router)
     return app
