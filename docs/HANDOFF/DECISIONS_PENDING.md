@@ -848,6 +848,52 @@ anked=tuple() and stats.zeros().
   166 passed, 52 sandbox-skips, 0 failed.
   Future milestones MUST add to (not replace) the release gate.
 
+### D-093 -- M14+ deprecated-test migration policy (Approved 2026-06-27)
+  Legacy test files remain in the tree for one release cycle after
+  the real-boundary replacement lands. Files flagged for removal:
+  `tests/application/observability/test_logs.py`,
+  `tests/release_gate/test_m14_rbac_suite.py`,
+  `tests/application/evaluation/test_ragas.py`,
+  `tests/application/llm_guard/test_llm_guard.py`.
+  Removal is gated by a CI run with `pytest -W error::DeprecationWarning`
+  returning the same `--tb=short` exit code (0) at the release bar.
+  The migration matrix is recorded at `docs/HANDOFF/TEST_MIGRATION.md`.
+
+### D-094 -- test-fixup: real InMemoryAuditLogRepository round-trips the expanded reason-code set (Approved 2026-06-27)
+  `_ALLOWED_REASON_CODES` in `src/domain/ports/reason_codes.py` extends with
+  the six M10/M11 codes (`regex_passed`, `regex_refused_high`,
+  `regex_refused_critical`, `llm_guard_allow`, `llm_guard_downgrade`,
+  `llm_guard_refuse`); typed module-level constants added for each. The
+  predicate stays application-side so the strict `ReasonCode` Literal
+  keeps its narrower shape (D-087 invariant preserved).
+
+### D-095 -- test-fixup: Clock injection on RecordRetrievalLog + RecordGuardVerdict (Approved 2026-06-27)
+  Both use cases accept an optional `Clock` Protocol via constructor;
+  `created_at` is taken from `clock.now()` (timezone-aware) when the
+  injected field is missing on the command. `datetime.utcnow()` removed
+  from the application layer (TECHNICAL_ISSUES Issue 05, the dormant
+  deprecated-API surface).
+
+### D-096 -- test-fixup: pyproject asyncio_default_fixture_loop_scope pinned to 'session' (Approved 2026-06-27)
+  Pinned in `pyproject.toml` to silence `PytestDeprecationWarning` from
+  pytest-asyncio 1.4. The M2 / M9 async-fixture caching contract is
+  preserved unchanged.
+
+### D-097 -- test-fixup: canonical-DTO factories replace inline type() synthesis in RBAC suite (Approved 2026-06-27)
+  `tests/release_gate/test_m14_rbac_suite_typed.py` builds every
+  `VerifyCitationsCommand` and `RetrieveAuthorizedCommand` via the
+  canonical application-port DTOs through small helper factories
+  (`_make_retrieve_cmd`, `_make_verify_cmd`). A future DTO field rename
+  breaks the test rather than silently passing.
+
+### D-098 -- test-fixup: post-fixup combined pytest is 190 passed, 52 skipped, 0 failed (Approved 2026-06-27)
+  Net delta from D-092 (166) is +24 across the four new test modules
+  (`test_logs_real_repository.py` 9; `test_m14_rbac_suite_typed.py` 7;
+  `test_ragas_real_class.py` 3; `test_llm_guard_real_class.py` 5).
+  Runs clean under `pytest -W error::DeprecationWarning` and
+  `pytest -W error::PendingDeprecationWarning`. Supersedes D-092 as the
+  current release bar until the next release-gate change.
+
 ## Rejected
 
 (none yet)

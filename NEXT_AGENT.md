@@ -12,11 +12,11 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**V1 release-ready. M0..M14 all closed on `feat/m14-hardening`.**
+**V1 release-ready.** M0..M14 all closed on `feat/m14-hardening`. A follow-up `feat/m14-test-fixup` (commit `b89c792`, 2026-06-27) replaced deprecated test patterns with real-boundary + typed-DTO equivalents; **190 passed, 52 sandbox-skips, 0 failed** under `pytest -W error::DeprecationWarning` and `pytest -W error::PendingDeprecationWarning`. Net delta from M14 closure (166) is +24 from the four new test modules. Legacy tests are retained for one release cycle pending D-093.
 
 ## Current Status
 
-**V1 implementation complete.** M0 closed on 2026-06-19 (`a78e21c`). M1 closed 2026-06-19. M2 closed on `main` at `7849d89`. M3 closed at `fb110bd`. M4 closed at `03351c4`. M5 closed on `feat/m5-jwt-validation`. M6 closed on `feat/m6-langgraph-skeleton`. M7 closed on `feat/m7-ingestion`. M8 closed on `feat/m8-retrieval`. M9 closed on `feat/m9-workflow-citations`. M10 closed on `feat/m10-regex-guard` (Regex Guard). M11 closed on `feat/m11-llm-guard` (LLM Guard capability port). M12 closed on `feat/m12-logs-complete` (audit + retrieval logs). M13 closed on `feat/m13-ragas` (RAGAS capability port). **M14 closed on `feat/m14-hardening` (release-gate tests).** Combined pytest: **166 passed**, 52 sandbox-skips, 0 failed.
+**V1 implementation complete.** M0 closed on 2026-06-19 (`a78e21c`). M1 closed 2026-06-19. M2 closed on `main` at `7849d89`. M3 closed at `fb110bd`. M4 closed at `03351c4`. M5 closed on `feat/m5-jwt-validation`. M6 closed on `feat/m6-langgraph-skeleton`. M7 closed on `feat/m7-ingestion`. M8 closed on `feat/m8-retrieval`. M9 closed on `feat/m9-workflow-citations`. M10 closed on `feat/m10-regex-guard` (Regex Guard). M11 closed on `feat/m11-llm-guard` (LLM Guard capability port). M12 closed on `feat/m12-logs-complete` (audit + retrieval logs). M13 closed on `feat/m13-ragas` (RAGAS capability port). **M14 closed on `feat/m14-hardening` (release-gate tests).** **M14 test-fixup closed on `feat/m14-test-fixup` (`b89c792`).** Combined pytest: **190 passed**, 52 sandbox-skips, 0 failed.
 
 **All branches pushed to `origin`** (verified via `git ls-remote --heads origin`). The launch contract boots DB-free end-to-end on `uvicorn src.api.app:create_app --factory` (no audit_repo, no run_query, no regex_guard required).
 
