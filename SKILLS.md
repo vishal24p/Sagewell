@@ -45,6 +45,7 @@ Use vendored external skills for reusable workflow guidance.
 |---|---|---|
 | `skills/external/plan-eng-review/SKILL.md` | `gstack-plan-eng-review` | Architecture, data flow, edge cases, and test-plan review. |
 | `skills/external/autoplan/SKILL.md` | `gstack-autoplan` | Full reviewed implementation plan. |
+| `skills/external/goal/SKILL.md` | `gstack-define-goal` | Restate the user's intent as a concrete, measurable goal before starting work; only invoke when the request is genuinely goal-shaped (multi-step, ambiguous, or needs a verifier), not for ordinary one-shot implementation tasks. |
 | `skills/external/review/SKILL.md` | `gstack-review` | Diff risk review. |
 | `skills/external/ship/SKILL.md` | `gstack-ship` | Commit, push, PR, release readiness. |
 | `skills/external/cso/SKILL.md` | `gstack-cso` | Security review and policy risk review. |

@@ -1,12 +1,13 @@
 """M7 ingestion application use case tests.
 
-Six distinct tests:
+Eight distinct tests:
 
 1. Happy path: a fresh source inserts a document + chunks
    and emits an `ingestion_succeeded` audit row.
 2. Idempotence: re-running with the same content_checksum
-   returns `SKIPPED`, emits `ingestion_skipped`, and leaves
-   the canonical document row count unchanged.
+   returns `SKIPPED`, emits `ingestion_skipped` (with
+   decision=ALLOWED, reason_code=ingestion_skipped), and
+   leaves the canonical document row count unchanged.
 3. Replace: a different content_checksum inserts a new chunk
    set + retires the previous active chunks (so they are not
    searchable after the call).

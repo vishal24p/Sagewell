@@ -174,6 +174,16 @@ Instead:
 2. Identify the affected source-of-truth document.
 3. Request clarification.
 
+For goal-shaped requests (multi-step, ambiguous, or needs a
+verifier), restate the user's intent as a concrete, measurable
+goal before starting work. The canonical route is
+`skills/external/goal/SKILL.md`. Do not invoke the goal skill
+for ordinary one-shot implementation tasks — only when the
+request is genuinely goal-shaped. For full reviewed plans,
+route to `skills/external/autoplan/SKILL.md`. Both are listed
+in `SKILLS.md`'s Vendored External Skills table; treat that
+table as the canonical routing index.
+
 ---
 
 ## Handoff Ownership
