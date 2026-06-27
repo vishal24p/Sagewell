@@ -38,91 +38,27 @@ Key invariants of V1:
 
 ## Current Milestone
 
-**M0..M9 closed. M10 (Regex Guard) is the next milestone.**
+**V1 implementation complete. M0..M14 all closed on `feat/m14-hardening`.**
 
-M1 closed on 2026-06-19 after developer-side verification ran
-clean against the remediated code (F-21 image tag, F-22 healthcheck
-escaping, F-23 host port). M2 implementation committed on the
-2026-06-20 developer-side Postgres parity run: ports layer at
-`src/domain/ports/`, in-memory and Postgres adapters under
-`src/infrastructure/repositories/`, parity tests at
-`tests/infrastructure/repositories/`. The M0 RBAC Access Outcome
-Suite still 31/31 green; combined pytest reports 81 passed and
-2 by-design skips. Findings F-24..F-28 surfaced during the
-parity run and were fixed before closure.
+- M0 - RBAC: closed on `a78e21c` (2026-06-19).
+- M1 - Engineering remediation + Migrations + Indexes: closed (2026-06-19).
+- M2 - Repository adapters: closed on `main` at `7849d89` (2026-06-20).
+- M3 - API Skeleton: closed at `fb110bd` (2026-06-20).
+- M4 - Audit Writer: closed at `03351c4` (2026-06-20).
+- M5 - JWT validation: closed on `feat/m5-jwt-validation` (2026-06-21).
+- M6 - LangGraph skeleton: closed on `feat/m6-langgraph-skeleton` (2026-06-21).
+- M7 - Ingestion: closed on `feat/m7-ingestion` (2026-06-26). Follow-up commit `ce0c645` fixes the SKIPPED-as-ALLOWED decision.
+- M8 - Retrieval: closed on `feat/m8-retrieval` (2026-06-26).
+- M9 - Workflow Wiring with Citations: closed on `feat/m9-workflow-citations` (2026-06-26).
+- M10 - Regex Guard: closed on `feat/m10-regex-guard` (2026-06-26).
+- M11 - LLM Guard (capability port D-004): closed on `feat/m11-llm-guard` (2026-06-26).
+- M12 - Audit + Retrieval Logs complete: closed on `feat/m12-logs-complete` (2026-06-26).
+- M13 - RAGAS capability port (D-006): closed on `feat/m13-ragas` (2026-06-26).
+- M14 - End-to-end Hardening + Release Gate: **closed on `feat/m14-hardening` (2026-06-26)**.
 
-M5 closed on 2026-06-21. Closure report at
-`docs/AUDITS/M5_REPORT.md`. Combined pytest 73 passed, 52
-sandbox-skips, 0 failed. M0 RBAC still 31/31; M3 tests/api still
-13/13; M4 application tests still 10/10; M5 tests/application/auth
-10/10. Findings F-31..F-34 surfaced during verification and were
-resolved in this session.
+Combined pytest: **166 passed, 52 sandbox-skips, 0 failed**. The release gate is the combined pytest result; 100% pass on the M0 RBAC suite + the M14 release gate is the canonical V1 release-ready signal. All branches pushed to `origin` (verified via `git ls-remote --heads origin`).
 
-M6 closed on 2026-06-21. Closure report at
-`docs/AUDITS/M6_REPORT.md`. Combined pytest 86 passed, 52
-sandbox-skips, 0 failed (net +13 tests from M5). M0 RBAC still
-31/31; M3 tests/api still 13/13; M4 tests/application/audit_event
-still 10/10; M5 tests/application/auth still 10/10. The M3/M5 API
-route surface is unchanged at M6; no `/v1/*` endpoint lands at M6.
-F-35 (channel-shape vs typed-state split, accepted-Low) raised
-during verification and documented in the closure report.
-
-M7 closed on 2026-06-26. Closure report at
-`docs/AUDITS/M7_REPORT.md`. Combined pytest 101 passed, 52
-sandbox-skips, 0 failed (net +15 tests from M6). M0 RBAC still
-31/31; M3 tests/api still 13/13; M4 tests/application/audit_event
-still 10/10; M5 tests/application/auth still 10/10; M6
-tests/application/workflow still 8/8; M6
-tests/infrastructure/langgraph still 5/5. The M3/M5/M6 API route
-surface is unchanged at M7; no `/v1/*` endpoint lands at M7.
-F-36 (capability-deferred embedding stub), F-37
-(predicate-vs-Literal reason-code widening), F-38 (typed-error
-slug defaults) accepted-Low and documented in the closure report.
-
-M8 closed on 2026-06-26. Closure report at
-`docs/AUDITS/M8_REPORT.md`. Combined pytest 118 passed, 52
-sandbox-skips, 0 failed (net +17 tests from M7 closure,
-inclusive of M7 follow-up regression cases). M0 RBAC still
-31/31; M3 tests/api still 13/13; M4 tests/application/audit_event
-still 10/10; M5 tests/application/auth still 10/10; M6
-still 13/13; M7 application still 6/6; M7 infrastructure
-still 4/4; M7 documents_m7_upsert still 5/5. M0 pure-function
-invocation count is now 2 per retrieval call (pre-filter
-projection + post-rerank drop); citation verification lands
-at M9. The M3/M5/M6/M7 API route surface is unchanged at M8;
-no `/v1/*` endpoint lands at M8. F-39 (algorithm parity with
-ParadeDB defaults), F-40 (candidate rebuild for projection
-observability) accepted-Low and documented in the closure
-report.
-
-**Current branch**: `feat/m9-workflow-citations` (M9 commit
-lands here; `main`, `feat/m5-jwt-validation`,
-`feat/m6-langgraph-skeleton`, `feat/m7-ingestion`, and
-`feat/m8-retrieval` are untouched).
-
-M3 implementation is complete and committed on 2026-06-20 at
-`fb110bd` (pushed to `origin/main`). The route surface is
-exactly `GET /health`, `GET /openapi.json`, `GET /docs`,
-`GET /redoc`. The launch contract is
-`uvicorn src.api.app:create_app --factory`. The M3 package is
-a pure API skeleton, no DB, no JWT, no query-answer path, and
-no audit/correlation router. At M5, `/openapi.json` becomes
-JWT-protected while `/health`, `/docs`, and `/redoc` continue
-to skip the auth middleware (D-039, D-040 Q3).
-
-M4 implementation is complete and committed on 2026-06-20 at
-`03351c4` (pushed to `origin/main`). M4 introduces the
-application layer's audit intake use case under
-`src/application/audit_event/`. M4 ships the use case only —
-no middleware, no test endpoint, and no automatic request-time
-audit writes; the launch contract stays DB-free until M5.
-Findings F-29 and F-30 from M3 are recorded in
-`docs/AUDITS/FINDINGS.md` and reflected in upstream docs.
-Closure record at `docs/AUDITS/M4_REPORT.md`.
-
-Source of truth: `PROJECT_STATUS.md` M0-M14.
-
----
+The launch contract boots DB-free end-to-end on `uvicorn src.api.app:create_app --factory` (no `audit_repo`, no `run_query`, no `regex_guard` required). The application surface carries zero hosted model SDKs; the hosted Embedder / Reranker / Guardrail / Generation / RAGAS SDKs are typed via Protocol ports and adopted at the milestones that own D-002..D-006.
 
 ## Completed
 

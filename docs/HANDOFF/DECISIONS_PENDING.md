@@ -824,6 +824,30 @@ anked=tuple() and stats.zeros().
   import anything under src/api/. Verified by AST
   scan.
 
+### D-081 -- M10 RegexRule ports (Approved 2026-06-26)
+### D-082 -- M10 RegexGuard use case (Approved 2026-06-26)
+### D-083 -- M10 regex_guard DI seam (Approved 2026-06-26)
+### D-084 -- M11 GuardrailVerdict + GuardrailModelPort capability-shaped (Approved 2026-06-26)
+  Capability-shaped per open question D-004 (hosted Guardrail Model).
+### D-085 -- M11 LLMGuard use case (Approved 2026-06-26)
+### D-086 -- M12 RecordRetrievalLog + RecordGuardVerdict use cases (Approved 2026-06-26)
+### D-087 -- M12 predicate widens application-controlled set; repository Enum stays narrowed (Approved 2026-06-26)
+### D-088 -- M13 RAGAS typed contract + RagasScorerPort capability-shaped (Approved 2026-06-26)
+  Capability-shaped per open question D-006 (hosted RAGAS SDK).
+### D-089 -- M13 RunRagasCase use case threshold rule (Approved 2026-06-26)
+  Threshold rule: every metric in case.minimums (when set) must be at or
+  above its threshold; metrics absent from minimums are informational.
+### D-090 -- M14 launch-contract release-gate tests (Approved 2026-06-26)
+  tests/release_gate/test_m14_hardening.py - 5 tests pinning the DB-free
+  launch contract; /v1/query 503 without runner; stub runner envelope;
+  M10 Regex Guard refusal; full M-stack smoke.
+### D-091 -- M14 RBAC Access Outcome Suite integration through M9 pipeline (Approved 2026-06-26)
+  tests/release_gate/test_m14_rbac_suite.py - 7 tests pinning D-007
+  100% pass on the canonical RBAC suite end-to-end through the M9 pipeline.
+### D-092 -- M14 combined pytest is the canonical V1 release bar (Approved 2026-06-26)
+  166 passed, 52 sandbox-skips, 0 failed.
+  Future milestones MUST add to (not replace) the release gate.
+
 ## Rejected
 
 (none yet)

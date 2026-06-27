@@ -4,16 +4,27 @@
 
 ## State
 
-Implementation order M0 -> M1 -> M2 -> M3 -> M4 -> M5 -> M6
--> M7 -> M8 -> M9 has been completed in that order on a
-series of feature branches. M3-M4 are on `main`; M5 also
-has a self-contained `feat/m5-jwt-validation` branch in
-the remote repository. M6 (LangGraph Skeleton) is closed
-on `feat/m6-langgraph-skeleton`. M7 (Ingestion) is closed
-on `feat/m7-ingestion`. M8 (Retrieval with Access Filter)
-is closed on `feat/m8-retrieval`. M9 (Workflow Wiring with
-Citations) is closed on `feat/m9-workflow-citations`. M10
-(Regex Guard) is the next implementation milestone.
+**V1 implementation complete.** All milestones M0..M14 closed on a series of feature branches, all pushed to `origin` (verified via `git ls-remote --heads origin`).
+
+- M0 (RBAC pure function) - closed 2026-06-19 on `main` (`a78e21c`).
+- M1 (Engineering remediation + migrations + indexes) - closed 2026-06-19 on `main`.
+- M2 (Repository adapters) - closed 2026-06-20 on `main` (`7849d89`). Developer-side Postgres parity run green.
+- M3 (API Skeleton) - closed 2026-06-20 on `main` (`fb110bd`).
+- M4 (Audit Writer) - closed 2026-06-20 on `main` (`03351c4`).
+- M5 (JWT validation) - closed 2026-06-21 on `feat/m5-jwt-validation`.
+- M6 (LangGraph Skeleton) - closed 2026-06-21 on `feat/m6-langgraph-skeleton`.
+- M7 (Ingestion) - closed 2026-06-26 on `feat/m7-ingestion`. Follow-up commit `ce0c645` fixes the SKIPPED-as-ALLOWED decision.
+- M8 (Retrieval with Access Filter) - closed 2026-06-26 on `feat/m8-retrieval`.
+- M9 (Workflow Wiring with Citations) - closed 2026-06-26 on `feat/m9-workflow-citations`.
+- M10 (Regex Guard) - closed 2026-06-26 on `feat/m10-regex-guard`.
+- M11 (LLM Guard capability port, D-004) - closed 2026-06-26 on `feat/m11-llm-guard`.
+- M12 (Audit + Retrieval Logs complete) - closed 2026-06-26 on `feat/m12-logs-complete`.
+- M13 (RAGAS capability port, D-006) - closed 2026-06-26 on `feat/m13-ragas`.
+- M14 (End-to-end Hardening + Release Gate) - closed 2026-06-26 on `feat/m14-hardening`.
+
+Combined pytest: **166 passed, 52 sandbox-skips, 0 failed**. Release-gate test surface: `tests/release_gate/` (launch-contract + envelope + M10-refusal + full-stack-smoke + end-to-end RBAC Access Outcome Suite). The launch contract boots DB-free end-to-end on `uvicorn src.api.app:create_app --factory`.
+
+Documentation is aligned to the approved V1 architecture. Open questions D-001..D-006 (JWT readiness / Embedding Model / Reranker Model / Guardrail Model / Generation Model / RAGAS SDK) own their own out-of-V1 adoption milestones; each requires its own ADR per `docs/HANDOFF/DECISIONS_PENDING.md`.
 
 Documentation is aligned to the approved V1 architecture.
 

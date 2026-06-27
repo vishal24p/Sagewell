@@ -12,18 +12,15 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M10 — Regex Guard.**
+**V1 release-ready. M0..M14 all closed on `feat/m14-hardening`.**
 
 ## Current Status
 
-**M0 closed on 2026-06-19 (commit `a78e21c`). M1 closed on
-2026-06-19. M2 closed on `main` at `7849d89`. M3 closed at
-`fb110bd`. M4 closed at `03351c4`. All pushed to `origin/main`.
-M5 is closed on `feat/m5-jwt-validation` (this repo's remote).
-M6 is closed on `feat/m6-langgraph-skeleton`. M7 is closed on
-`feat/m7-ingestion`. M8 is closed on `feat/m8-retrieval`. M9
-is closed on `feat/m9-workflow-citations`. M10 (Regex Guard)
-is the next implementation milestone.**
+**V1 implementation complete.** M0 closed on 2026-06-19 (`a78e21c`). M1 closed 2026-06-19. M2 closed on `main` at `7849d89`. M3 closed at `fb110bd`. M4 closed at `03351c4`. M5 closed on `feat/m5-jwt-validation`. M6 closed on `feat/m6-langgraph-skeleton`. M7 closed on `feat/m7-ingestion`. M8 closed on `feat/m8-retrieval`. M9 closed on `feat/m9-workflow-citations`. M10 closed on `feat/m10-regex-guard` (Regex Guard). M11 closed on `feat/m11-llm-guard` (LLM Guard capability port). M12 closed on `feat/m12-logs-complete` (audit + retrieval logs). M13 closed on `feat/m13-ragas` (RAGAS capability port). **M14 closed on `feat/m14-hardening` (release-gate tests).** Combined pytest: **166 passed**, 52 sandbox-skips, 0 failed.
+
+**All branches pushed to `origin`** (verified via `git ls-remote --heads origin`). The launch contract boots DB-free end-to-end on `uvicorn src.api.app:create_app --factory` (no audit_repo, no run_query, no regex_guard required).
+
+
 
 M3 silhouette is the pure API skeleton per the user's reduced
 decision (`GET /health`, `GET /openapi.json`, `GET /docs`,
@@ -185,47 +182,16 @@ M8 silhouette (closure record at
 
 ## Next Task
 
-The current task is to land **M9 — Workflow Wiring with
-Citations** on a feature branch:
+**V1 implementation complete.** No new V1 milestones remaining. Future work is out-of-V1 and requires its own ADR per AGENTS.md.
 
-- Bind the M8 retrieval orchestrator onto the M6 LangGraph
-  skeleton as a typed node in the state machine.
-- Add the citation-verification step (the third invocation
-  of the M0 pure function per `AGENTS.md` Architectural
-  Guardrails). Citations whose documents evaluate deny
-  against the actor are dropped before generation.
-- The D-028 forward-hook discipline (workflow -> api, never
-  api -> workflow) is preserved.
-- The M8 typed `AccessPolicyFilter` projection is the
-  inheritance flow: M9 reads from `workflow["retrieval"]`
-  and re-invokes `decide(user, citation.document)`.
-- The `/v1/query` route ships at M9 bound to the
-  orchestrator-backed workflow. The launch contract
-  remains DB-free unless `audit_repo=None` is overridden by
-  `__main__` at runtime; the M9 closure keeps the
-  `/health` boot story.
+A new agent reading this file should:
 
-### How to test (M9 prelude)
+1. Verify the V1 release-ready state by running `python -m pytest`. Expected: **166 passed, 52 sandbox-skips, 0 failed**.
+2. Read `docs/AUDITS/M14_REPORT.md` to confirm the release-gate closure evidence (launch contract boots DB-free, M9 pipeline envelope, M10 Regex Guard refusal flows through gate, M5..M11 stack smoke wires, M0 RBAC suite pass end-to-end through the M9 pipeline).
+3. Read `MEMORY.md` for D-081..D-092 (V1 implementation cadence).
+4. Read `docs/HANDOFF/DECISIONS_PENDING.md` for open questions D-001..D-006 (each owns its own out-of-V1 adoption milestone).
+5. Optional: open the next-milestone-set discussion. Per AGENTS.md, any new milestone order or out-of-V1 work requires an ADR before touching code.
 
-- `.venv\Scripts\python.exe -m pytest -q tests/api tests/rbac
-  tests/infrastructure tests/application` is green.
-- `grep -rE "fastapi|pydantic|uvicorn" src/domain/` returns
-  zero rows.
-- `grep -rE "asyncpg|psycopg|sqlalchemy|llama_index|langgraph"`
-  in `src/application/` returns zero rows. (LangGraph
-  imports are allowed ONLY under
-  `src/infrastructure/langgraph/`.)
-
-### How to verify before moving on to M10
-
-- The M8 closure record at `docs/AUDITS/M8_REPORT.md`
-  remains accurate.
-- The M9 closure record at `docs/AUDITS/M9_REPORT.md`
-  carries the citation-verification-step evidence
-  (one more invocation of the M0 pure function per
-  round-trip) and the post-citation-tail ranked output.
-- Combined pytest stays green; M9 tests add at least
-  one test per guarantee above.
 
 ---
 
