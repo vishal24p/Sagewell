@@ -10,6 +10,7 @@ Modules:
     ingestion.py      - DocumentChunkerProtocol, EmbeddingModelProtocol,
                         ChunkSegment, DocumentChunk (M7).
     citations.py      - Citation (M9).
+    regex_guard.py    - RegexRule, RegexRuleCatalog, RegexGuardVerdict (M10).
     retrieval.py      - AccessPolicyFilter, RetrievalQuery, RetrievalCandidate,
                         RankedCandidate, RetrievalStageStats, retrieval ports
                         (M8).

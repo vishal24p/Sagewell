@@ -56,6 +56,7 @@ def create_app(
     audit_repo: Optional["AuditLogRepository"] = None,
     jwt_signer: Optional["JwtSigner"] = None,
     run_query: Optional["RunQueryFn"] = None,
+    regex_guard: Optional["RegexGuard"] = None,
 ) -> FastAPI:
     """Build and configure the V1 API.
 
@@ -84,6 +85,9 @@ def create_app(
 
     if run_query is not None:
         app.state.run_query = run_query
+
+    if regex_guard is not None:
+        app.state.regex_guard = regex_guard
 
     if jwt_signer is not None:
         from src.application.auth.verify_jwt import VerifyJwtToken

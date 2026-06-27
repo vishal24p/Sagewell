@@ -33,6 +33,10 @@ from fastapi.responses import JSONResponse
 
 from src.api.errors.schemas import ErrorResponse
 from src.application.auth.dto import AuthActor
+from src.application.regex_guard.guard import (
+    RegexGuard,
+    RegexGuardCommand,
+)
 from src.application.workflow.errors import AnonymousExecutionError
 from src.application.workflow.state import WorkflowState
 
@@ -86,6 +90,34 @@ async def query_handler(request: Request) -> JSONResponse:
             status_code=400,
             content=env.model_dump(),
         )
+
+    # M10 -- Regex Guard. Pattern-based refusals precede the
+    # retrieval + citation-verification pipeline. The guard
+    # is wired through the DI seam; without it the route
+    # runs the M9 pipeline directly (preserving the M9
+    # launch contract).
+    regex_guard: Optional[RegexGuard] = getattr(
+        request.app.state, "regex_guard", None
+    )
+    if regex_guard is not None:
+        guard_result = regex_guard.execute(
+            RegexGuardCommand(query=query_text)
+        )
+        if not guard_result.verdict.allowed:
+            env = ErrorResponse(
+                code="regex_refused",
+                message=(
+                    f"Regex Guard refused the query: "
+                    f"rule_id={guard_result.verdict.rule_id}, "
+                    f"tier={guard_result.verdict.tier.value if guard_result.verdict.tier else 'high'}, "
+                    f"reason_code={guard_result.reason_code}"
+                ),
+                correlation_id=correlation_id,
+            )
+            return JSONResponse(
+                status_code=400,
+                content=env.model_dump(),
+            )
 
     run_query = getattr(request.app.state, "run_query", None)
     if run_query is None:
