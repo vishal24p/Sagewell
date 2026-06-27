@@ -5,13 +5,14 @@
 ## State
 
 Implementation order M0 -> M1 -> M2 -> M3 -> M4 -> M5 -> M6
--> M7 has been completed in that order on a series of feature
-branches. M3-M4-M5 are on `main`; M5 also has a self-contained
-`feat/m5-jwt-validation` branch in the remote repository.
-M6 (LangGraph Skeleton) is closed on a feature branch
+-> M7 -> M8 has been completed in that order on a series of
+feature branches. M3-M4 are on `main`; M5 also has a
+self-contained `feat/m5-jwt-validation` branch in the remote
+repository. M6 (LangGraph Skeleton) is closed on
 `feat/m6-langgraph-skeleton`. M7 (Ingestion) is closed on
-`feat/m7-ingestion`. M8 (Retrieval with Access Filter) is the
-next implementation milestone.
+`feat/m7-ingestion`. M8 (Retrieval with Access Filter) is
+closed on `feat/m8-retrieval`. M9 (Workflow Wiring with
+Citations) is the next implementation milestone.
 
 Documentation is aligned to the approved V1 architecture.
 

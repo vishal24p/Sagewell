@@ -1023,3 +1023,21 @@ by 13 M6 tests.
 
 **No change planned**.
 
+
+## F-39 -- M8 in-memory dense + BM25 algorithm parity with ParadeDB defaults
+
+**Tag**: LOW (capability parity; documented)
+**Location**: src/infrastructure/retrieval/in_memory_dense.py, src/infrastructure/retrieval/in_memory_bm25.py.
+
+**Finding**: The V1 in-memory dense retriever scans the in-memory catalog with cosine similarity. The V1 in-memory BM25 retriever uses k1=1.5, b=0.75 (ParadeDB / pg_search defaults). Both adapters honor the typed AccessPolicyFilter projection the same way the future pgvector / pg_search SQL adapters must, so the dense / BM25 candidate sets stay aligned. The cosine + BM25 implementations are pure Python and locked at these hyperparameter values so the SQL adoption is a direct translation with no algorithmic drift.
+
+**Status**: Accepted-Low. Documented in docs/AUDITS/M8_REPORT.md under Findings raised during M8 (F-39). The pgvector / pg_search SQL adoption is the M12+ milestone; the algorithm parity de-risks that swap.
+
+## F-40 -- M8 RetrievalCandidate rebuild to attach document_projection for observability
+
+**Tag**: LOW (in-orchestrator allocation cost; documented)
+**Location**: src/application/retrieval/retrieve.py.
+
+**Finding**: The post-rerank drop re-builds RetrievalCandidate to attach the resolved document_projection so observability rows and downstream boundaries can read it without a documents-port round-trip. RetrievalCandidate is a frozen dataclass so the rebuild is a fresh allocation per survivor. The cost is negligible at top_n <= 8 (the M9 production cap); a hot-path optimization (mutating the candidate or caching the projection) lands at the framework-adapter or future SQL coercion layer. The current cost is observed by the M8 application tests; no M8 benchmark regression is recorded.
+
+**Status**: Accepted-Low. Documented in docs/AUDITS/M8_REPORT.md under Findings raised during M8 (F-40). No change planned at M8; the optimization lives outside the application boundary.

@@ -650,6 +650,108 @@ projection (Approved 2026-06-21)
 
 ---
 
+
+### D-061 -- M8 retrieval ports (Approved 2026-06-26)
+
+- **Path**: src/domain/ports/retrieval.py. New
+  framework-free protocols
+  (DenseRetrieverProtocol,
+  Bm25RetrieverProtocol,
+  RerankerProtocol,
+  QueryEmbedderProtocol re-export).
+  All async. Application-package imports the
+  protocols only.
+
+### D-062 -- M8 AccessPolicyFilter projection (Approved 2026-06-26)
+
+- **Shape**: typed projection carrying
+  llowed_departments: tuple[str, ...],
+  minimum_clearance: str (V1 canonical
+  uppercase ladder step), and
+  decision_outcome: tuple[bool, str]. The
+  decision is NEVER re-implemented at the
+  adapter layer; the projection translates
+  into a SQL WHERE clause or in-memory
+  predicate.
+
+### D-063 -- M8 RetrievalCandidate document_projection (Approved 2026-06-26)
+
+- **Field**: RetrievalCandidate.document_projection:
+  Optional[DocumentProjection]. The post-rerank
+  drop reads this field; when None, the drop
+  defers to M9 citation verification. The in-memory
+  and Postgres adapters populate the projection
+  so the orchestrator short-circuits without a
+  documents-port round-trip.
+
+### D-064 -- M8 retrieval orchestrator (Approved 2026-06-26)
+
+- **Path**: src/application/retrieval/retrieve.py.
+  Wires seven stages: pre-filter projection
+  (M0) -> embed (M7) -> dense (M8) -> BM25 (M8)
+  -> RRF fuse (pure) -> cross-encoder rerank
+  (M8, optional) -> post-rerank drop (M0). The
+  flow is fixed; future optimizations land at
+  the framework-adapter layer.
+
+### D-065 -- M8 clearance-from-str translation (Approved 2026-06-26)
+
+- **Helper**: _clearance_from_str() translates
+  JWT-supplied lowercase clearance strings to
+  the V1 uppercase enum. None returned for
+  blank input (fail-closed to
+  missing_user_clearance). Unrecognized
+  non-blank strings raise
+  AccessDecisionUnavailableError.
+
+### D-066 -- M8 EmptyRetrievalError rule (Approved 2026-06-26)
+
+- **Rule**: EmptyRetrievalError raised when
+  BOTH dense AND BM25 return zero candidates.
+  The error carries correlation_id for the
+  M12 retrieval_logs row.
+
+### D-067 -- M8 orchestrator never raises on SQL-filter mismatch (Approved 2026-06-26)
+
+- **Rule**: the M8 orchestrator does NOT write
+  audit rows directly; M9 wires the audit-write
+  step onto the workflow state. The orchestrator
+  never raises on a SQL-filter mismatch -- it
+  returns typed
+  AuthorizationOutcome(allowed=False, reason=...)
+  with 
+anked=tuple() and stats.zeros().
+
+### D-068 -- M8 in-memory retrieval adapters (Approved 2026-06-26)
+
+- **Path**: src/infrastructure/retrieval/in_memory_dense.py,
+  in_memory_bm25.py. Canonical V1 algorithms:
+  cosine-similarity (Dense); BM25 with
+  k1=1.5, =0.75 (BM25; ParadeDB / pg_search
+  defaults). Both honor the AccessPolicyFilter
+  projection symmetrically.
+
+### D-069 -- M8 IdentityReranker stub (Approved 2026-06-26)
+
+- **Path**: src/infrastructure/retrieval/identity_reranker.py.
+  Sort-and-cap stub. Hosted-reranker capability
+  is open question D-003.
+
+### D-070 -- M8 zero new routes (Approved 2026-06-26)
+
+- **Rule**: M3/M5/M6/M7 API route surface is
+  unchanged at M8. Zero /v1/... endpoints
+  land at M8. M9 wires the orchestrator onto
+  the M9 route surface.
+
+### D-071 -- M8 RRF pure function (Approved 2026-06-26)
+
+- **Path**: src/domain/retrieval/rrf.py.
+  `fuse(dense_ranked, bm25_ranked, *, k=60)`
+  is a pure function. Negative `k` raises
+  `ValueError`. Tie-break is deterministic
+  by `(document_id ASC, chunk_id ASC)`.
+
 ## Rejected
 
 (none yet)

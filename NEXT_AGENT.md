@@ -12,7 +12,7 @@ Documents" before doing anything.
 
 ## Current Milestone
 
-**M8 — Retrieval with Access Filter.**
+**M9 — Workflow Wiring with Citations.**
 
 ## Current Status
 
@@ -21,8 +21,9 @@ Documents" before doing anything.
 `fb110bd`. M4 closed at `03351c4`. All pushed to `origin/main`.
 M5 is closed on `feat/m5-jwt-validation` (this repo's remote).
 M6 is closed on `feat/m6-langgraph-skeleton`. M7 is closed on
-`feat/m7-ingestion`. M8 (Retrieval with Access Filter) is the
-next implementation milestone.**
+`feat/m7-ingestion`. M8 is closed on `feat/m8-retrieval`. M9
+(Workflow Wiring with Citations) is the next implementation
+milestone.**
 
 M3 silhouette is the pure API skeleton per the user's reduced
 decision (`GET /health`, `GET /openapi.json`, `GET /docs`,
@@ -139,98 +140,138 @@ M7 silhouette (closure record at
   stub, predicate-vs-Literal reason-code widening,
   typed-error slug defaults) raised and accepted-Low.
 
+M8 silhouette (closure record at
+`docs/AUDITS/M8_REPORT.md`):
+
+- `src/domain/ports/retrieval.py` introduces four
+  retrieval ports (`DenseRetrieverProtocol`,
+  `Bm25RetrieverProtocol`, `RerankerProtocol`,
+  `QueryEmbedderProtocol` re-export) plus the typed
+  `AccessPolicyFilter` projection, `RetrievalQuery`,
+  `RetrievalCandidate` (with optional
+  `document_projection`), `RankedCandidate`, and
+  `RetrievalStageStats`.
+- `src/domain/retrieval/rrf.py` is the pure RRF fusion
+  function (deterministic tie-break, negative-K rejection).
+- `src/application/retrieval/retrieve.py` is the
+  orchestrator wiring the seven M8 stages: pre-filter
+  projection (M0 pure function) -> embed (M7 capability) ->
+  dense -> BM25 -> RRF fuse -> rerank (optional) ->
+  post-rerank drop (M0 pure function). Typed errors
+  (`EmptyRetrievalError`, `AccessDecisionUnavailableError`,
+  `RetrievalDomainError`).
+- `src/infrastructure/retrieval/` ships V1 in-memory
+  adapters (cosine dense, BM25 with k1=1.5 / b=0.75,
+  identity reranker stub). The typed `AccessPolicyFilter`
+  projection is honored in the pre-scan predicate so the
+  application decision cannot be circumvented.
+- 15 new tests across
+  `tests/domain/retrieval/test_rrf.py` (6),
+  `tests/application/retrieval/test_retrieve_authorized_candidates.py`
+  (6), and
+  `tests/infrastructure/retrieval/test_in_memory_retrievers.py`
+  (3).
+- Combined pytest: 118 passed (was 101; +17 net of M7
+  follow-up), 52 sandbox-skips, 0 failed. The M3/M5/M6
+  API surface is unchanged at M8; no `/v1/*` endpoint
+  lands here. M0 pure-function invocation count is now
+  2 per retrieval call (pre-filter projection +
+  post-rerank drop); citation verification lands at M9.
+- Findings F-39 (algorithm parity with ParadeDB defaults),
+  F-40 (candidate rebuild for projection observability)
+  raised and accepted-Low.
+
 ---
 
 ## Next Task
 
-The current task is to land **M8 — Retrieval with
-Access Filter** on a feature branch:
+The current task is to land **M9 — Workflow Wiring with
+Citations** on a feature branch:
 
-- Four retrieval stages are developed one at a time:
-  Dense (pgvector cosine), BM25 (pg_search), RRF fusion,
-  cross-encoder rerank.
-- Every stage is paired with the access-decision pure
-  function from M0 from the first test. Pre-retrieval
-  SQL filter and post-rerank drop are exercised as part
-  of M8, not as a separate phase.
-- The retrieval adapters live under
-  `src/infrastructure/retrieval/{dense,bm25,rrf,reranker}/`
-  with framework-free ports under `src/domain/ports/`.
-- The M7 ingestion use case is the dataset; M8 reads from
-  the chunks ingested at M7.
+- Bind the M8 retrieval orchestrator onto the M6 LangGraph
+  skeleton as a typed node in the state machine.
+- Add the citation-verification step (the third invocation
+  of the M0 pure function per `AGENTS.md` Architectural
+  Guardrails). Citations whose documents evaluate deny
+  against the actor are dropped before generation.
+- The D-028 forward-hook discipline (workflow -> api, never
+  api -> workflow) is preserved.
+- The M8 typed `AccessPolicyFilter` projection is the
+  inheritance flow: M9 reads from `workflow["retrieval"]`
+  and re-invokes `decide(user, citation.document)`.
+- The `/v1/query` route ships at M9 bound to the
+  orchestrator-backed workflow. The launch contract
+  remains DB-free unless `audit_repo=None` is overridden by
+  `__main__` at runtime; the M9 closure keeps the
+  `/health` boot story.
 
-### How to test (M8 prelude)
+### How to test (M9 prelude)
 
 - `.venv\Scripts\python.exe -m pytest -q tests/api tests/rbac
   tests/infrastructure tests/application` is green.
 - `grep -rE "fastapi|pydantic|uvicorn" src/domain/` returns
   zero rows.
 - `grep -rE "asyncpg|psycopg|sqlalchemy|llama_index|langgraph"`
-  in `src/application/` or `src/domain/` returns zero rows.
-  The retrieval ports must import framework-free; framework
-  adapters live under `src/infrastructure/retrieval/`.
+  in `src/application/` returns zero rows. (LangGraph
+  imports are allowed ONLY under
+  `src/infrastructure/langgraph/`.)
 
-### How to verify before moving on to M9
+### How to verify before moving on to M10
 
-- The M7 closure record at `docs/AUDITS/M7_REPORT.md`
-  remains accurate.
 - The M8 closure record at `docs/AUDITS/M8_REPORT.md`
-  carries the four-stage retrieval evidence (dense +
-  BM25 + RRF + cross-encoder), the access-decision
-  pre-filter + post-rerank drop evidence, and the
-  retrieval_logs write-through evidence (the latter
-  is M8 partial; the M12 milestone completes the
-  retrieval_logs surface).
-- Combined pytest stays green; M8 tests add at least
+  remains accurate.
+- The M9 closure record at `docs/AUDITS/M9_REPORT.md`
+  carries the citation-verification-step evidence
+  (one more invocation of the M0 pure function per
+  round-trip) and the post-citation-tail ranked output.
+- Combined pytest stays green; M9 tests add at least
   one test per guarantee above.
 
 ---
 
 ## Relevant Documents
 
-Read these before starting M8:
+Read these before starting M9:
 
-- `ARCHITECTURE.md` — Retrieval is hybrid. All four
-  stages are mandatory. The access-decision pure function
-  is invoked pre-retrieval, post-rerank, and at citation
-  verification (the third boundary lands at M9).
-- `DATABASE_SCHEMA.md` — V1 tables: `users`, `documents`,
-  `chunks` (with `vector(1536)` embedding), `audit_logs`,
-  `retrieval_logs`. The M8 dense retrieval adapter targets
-  the `chunks_embedding_idx` HNSW index.
-- `POLICIES.md` — The access decision is a single pure
-  function invoked at every boundary. M8 introduces the
-  pre-retrieval boundary + post-rerank boundary.
-- `WORKFLOWS.md` — The query-and-answer flow runs
-  retrieval stages 6..9 with pre-filter applied; the
-  rerank-and-drop step runs at stage 10. M8 covers the
-  retrieval side; M9 wires the workflow to mount this.
+- `ARCHITECTURE.md` — workflow orchestration, retrieval
+  pipeline, prompt-protection ordering (Regex Guard ->
+  RBAC Authorization -> Retrieval -> LLM Guard ->
+  Generation, M10 introduces Regex Guard, M11 introduces
+  LLM Guard).
+- `DATABASE_SCHEMA.md` — retrieve `chunks.embedding` via
+  `chunks_embedding_idx` HNSW (pgvector), `documents` via
+  `documents_access_filter_idx`.
+- `POLICIES.md` — the access decision is a single pure
+  function invoked at every boundary. M9 introduces the
+  citation-verification boundary.
+- `WORKFLOWS.md` — the LangGraph state machine, node
+  list, citation thread.
+- `skills/project/architecture_review/SKILL.md` — review
+  shape before adding nodes.
 - `skills/project/retrieval_engine/SKILL.md` — pipeline
-  shape, RRF K constant, access-decision enforcement
-  points.
-- `skills/project/database_design/SKILL.md` — schema and
-  index invariants for `documents` and `chunks`.
-- `docs/AUDITS/M7_REPORT.md` — confirms the ingestion
-  surface that M8 consumes (the chunks inserted by
-  M7's `IngestDocument` are the dataset).
+  shape, RRF K, access-decision enforcement points.
+- `docs/AUDITS/M8_REPORT.md` — confirms M8 surface that
+  M9 wires.
 
 ---
 
-## Do Not Touch for M8
+## Do Not Touch for M9
 
-The M0..M7 "Do Not Touch" lists still apply. Additions for
-M8 are NOT prohibitions against working on M8; they are
-prohibitions against pre-empting M9+ while working on M8:
+The M8 "Do Not Touch" carried-over list is now historical;
 
-- Do NOT introduce a query-time workflow mount on a
-  `/v1/*` route. Retrieval is exercised through tests;
-  the query-time workflow wiring lands at M9.
-- Do NOT pivot the M0 access-decision pure function. M8
-  calls the function unchanged.
-- Do NOT introduce a vector-index hint or a pgvector
-  configuration knob beyond what the M1 schema already
-  defines.
-- Do NOT introduce streaming, SSE, or WebSocket — V1
+the M0..M7 prohibitions still apply. Additions for M9
+prohibit pre-empting M10+:
+
+- Do NOT pivot the M0 access-decision pure function. M9
+  calls it unchanged at the citation-verification step
+  (the third boundary per `AGENTS.md` Architectural
+  Guardrails).
+- Do NOT widen the M8 retrieval surface. The M8 typed
+  `AccessPolicyFilter`, `RetrievalCandidate`,
+  `DocumentProjection`, and `ranked` list are the input
+  to M9; M9 reads from `workflow["retrieval"]` and does
+  not re-implement the projection.
+- Do NOT introduce streaming, SSE, or WebSocket -- V1
   stays request/response.
 - Do NOT introduce CORS, OIDC, Okta, Entra ID, LDAP, or
   external IAM. The V1 auth path is JWT-only and unchanged
@@ -238,10 +279,19 @@ prohibitions against pre-empting M9+ while working on M8:
 - Do NOT introduce multi-tenant concepts, ACL tables, or
   group/role authorization. These are out of V1 per
   AGENTS.md.
-- Do NOT pin a specific embedding / reranker provider
-  in code. The embedding capability stays open question
-  D-002; the reranker capability stays open question
-  D-003. M8 ships capability-shaped ports.
+- Do NOT pin a specific generation, embedding, or reranker
+  model in code. Generation lands at M9 as a
+  capability-shaped port; the model capability is
+  deferred to the owning adoption milestones (open
+  questions D-002 / D-003).
+- Do NOT touch the M3/M5/M6 API surface beyond adding the
+  M9 `/v1/query` route. Existing routes (/health,
+  /openapi.json, /docs, /redoc) and the JWT middleware
+  behavior are unchanged.
+- Do NOT introduce prompt-protection guards here. Regex
+  Guard is M10; LLM Guard is M11. The primary request
+  path at M9 invokes them in order but introduces only
+  the nodes that wire the orchestrator.
 
 ---
 
