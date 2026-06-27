@@ -11,6 +11,7 @@ Modules:
                         ChunkSegment, DocumentChunk (M7).
     citations.py      - Citation (M9).
     regex_guard.py    - RegexRule, RegexRuleCatalog, RegexGuardVerdict (M10).
+    llm_guard.py      - GuardrailVerdict, GuardrailModelPort, LLMGuardCommand, LLMGuardResult (M11).
     retrieval.py      - AccessPolicyFilter, RetrievalQuery, RetrievalCandidate,
                         RankedCandidate, RetrievalStageStats, retrieval ports
                         (M8).
