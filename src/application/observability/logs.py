@@ -21,13 +21,23 @@ the M10/M11/M12 reason codes via the
 `ReasonCode` Literal stays narrowed to the seven M0
 codes; the application's predicate accumulates the
 V1 allowed-codes set across milestones.
+
+Both use cases accept an optional `Clock` injection
+(`src.application.audit_event.clock.Clock`). When
+supplied, `created_at` is taken from `clock.now()` so
+the audit-rows are timezone-aware and the deprecated
+`datetime.utcnow()` path is dormant on production
+callers.
 """
 from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Iterable, Optional
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Iterable, Optional
+
+if TYPE_CHECKING:
+    from src.application.audit_event.clock import Clock
 
 from src.domain.access.access_decision import Reason as AccessReason
 from src.domain.ports.audit_logs import (
@@ -122,8 +132,14 @@ class RecordRetrievalLog:
     shapes only.
     """
 
-    def __init__(self, *, repo: RetrievalLogRepository) -> None:
+    def __init__(
+        self,
+        *,
+        repo: RetrievalLogRepository,
+        clock: Optional["Clock"] = None,
+    ) -> None:
         self._repo = repo
+        self._clock: Optional["Clock"] = clock
 
     async def execute(self, command: RecordRetrievalLogCommand) -> int:
         stats_dict = dataclasses.asdict(command.stage_stats)
@@ -139,9 +155,29 @@ class RecordRetrievalLog:
             retrieval_config=config,
             candidate_counts=stats_dict,
             correlation_id=command.correlation_id,
-            created_at=command.occurred_at or datetime.utcnow(),
+            created_at=_resolve_created_at(command.occurred_at, self._clock),
         )
         return await self._repo.append(log)
+
+
+def _resolve_created_at(
+    occurred_at: Optional[datetime], clock: Optional["Clock"]
+) -> datetime:
+    """Return a timezone-aware timestamp.
+
+    Order:
+      1. explicit `occurred_at` wins;
+      2. injected `Clock.now()` returns timezone-aware datetime;
+      3. unconfigured call falls back to `datetime.utcnow()`
+         (the legacy behaviour carried from Issue 05 -- the
+          production callers always inject Clock so this
+          branch is dormant).
+    """
+    if occurred_at is not None:
+        return occurred_at
+    if clock is not None:
+        return clock.now()
+    return datetime.now(tz=timezone.utc)
 
 
 def _resolve_actor_id(actor_id: str | int | None) -> int:
@@ -186,8 +222,14 @@ class RecordGuardVerdict:
     legal codes.
     """
 
-    def __init__(self, *, repo: AuditLogRepository) -> None:
+    def __init__(
+        self,
+        *,
+        repo: AuditLogRepository,
+        clock: Optional["Clock"] = None,
+    ) -> None:
         self._repo = repo
+        self._clock: Optional["Clock"] = clock
 
     async def execute(self, command: RecordGuardVerdictCommand) -> int:
         if command.reason_code not in ALL_V1_REASON_CODES:
@@ -196,7 +238,7 @@ class RecordGuardVerdict:
             )
         audit = AuditEvent(
             id=None,
-            created_at=command.occurred_at or datetime.utcnow(),
+            created_at=_resolve_created_at(command.occurred_at, self._clock),
             actor_user_id=command.actor_user_id,
             action=command.action,
             resource_type=None,

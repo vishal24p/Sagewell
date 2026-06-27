@@ -54,6 +54,18 @@ INGESTION_SKIPPED = "ingestion_skipped"
 INGESTION_FAILED = "ingestion_failed"
 
 
+# Reason codes emitted by the M10 Regex Guard application layer.
+REGEX_PASSED = "regex_passed"
+REGEX_REFUSED_HIGH = "regex_refused_high"
+REGEX_REFUSED_CRITICAL = "regex_refused_critical"
+
+
+# Reason codes emitted by the M11 LLM Guard application layer.
+LLM_GUARD_ALLOW = "llm_guard_allow"
+LLM_GUARD_DOWNGRADE = "llm_guard_downgrade"
+LLM_GUARD_REFUSE = "llm_guard_refuse"
+
+
 # Reason codes emitted by the access-decision pure function. The
 # M5 `jwt_invalid` extension is intentionally NOT in this literal;
 # the literal bounds the access-decision's output shape, not the
@@ -85,6 +97,12 @@ _ALLOWED_REASON_CODES: frozenset[str] = frozenset({
     "ingestion_succeeded",
     "ingestion_skipped",
     "ingestion_failed",
+    "regex_passed",
+    "regex_refused_high",
+    "regex_refused_critical",
+    "llm_guard_allow",
+    "llm_guard_downgrade",
+    "llm_guard_refuse",
 })
 
 

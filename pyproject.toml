@@ -26,3 +26,9 @@ dev = [
 testpaths = ["tests"]
 addopts = "-q"
 asyncio_mode = "auto"
+# Pin the default fixture loop scope so the future pytest-asyncio
+# upgrade (2026+) does not silently switch the default from
+# "fixture" caching to "function" mode, which would invalidate the
+# async-fixture caching contract the M2/M9 tests rely on. The
+# "session" choice preserves the current behaviour.
+asyncio_default_fixture_loop_scope = "session"

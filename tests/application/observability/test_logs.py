@@ -11,7 +11,6 @@ Six tests:
 """
 from __future__ import annotations
 
-import asyncio
 import dataclasses
 
 import pytest
