@@ -16,11 +16,15 @@ Use cases:
     verdict with one of the M10/M11 M12 reason codes.
 
 These use cases extend the M4 audit_intake surface with
-the M10/M11/M12 reason codes via the
-`is_allowed_reason_code()` predicate. The strict
-`ReasonCode` Literal stays narrowed to the seven M0
-codes; the application's predicate accumulates the
-V1 allowed-codes set across milestones.
+the M10/M11/M12 reason codes via the canonical
+`assert_is_allowed_reason_code()` predicate defined in
+`src/domain/ports/reason_codes.py`. The canonical set is
+the single source of truth across both the
+application-layer validator (this module) and the
+repository-layer validator (in-memory + Postgres
+adapters). The strict `ReasonCode` Literal stays narrowed
+to the seven M0 codes; the broader canonical set is the
+union of M0 + M5 + M7 + M10/M11 codes.
 
 Both use cases accept an optional `Clock` injection
 (`src.application.audit_event.clock.Clock`). When
@@ -45,6 +49,10 @@ from src.domain.ports.audit_logs import (
     AuditEvent,
     AuditLogRepository,
 )
+from src.domain.ports.reason_codes import (
+    ALLOWED_REASON_CODES,
+    assert_is_allowed_reason_code,
+)
 from src.domain.ports.retrieval import RetrievalStageStats
 from src.domain.ports.retrieval_logs import (
     RetrievalLog,
@@ -54,6 +62,7 @@ from src.domain.ports.users import UserProjection as User
 
 
 __all__ = [
+    "ALL_V1_REASON_CODES",
     "RecordRetrievalLog",
     "RecordRetrievalLogCommand",
     "RecordGuardVerdict",
@@ -61,35 +70,13 @@ __all__ = [
 ]
 
 
-_M0_REASON_STRINGS = frozenset({
-    "allowed",
-    "department_mismatch",
-    "clearance_insufficient",
-    "missing_user_department",
-    "missing_user_clearance",
-    "missing_document_department",
-    "missing_document_clearance",
-})
-
-_OTHER_REASON_STRINGS = frozenset({
-    "jwt_invalid",
-    "ingestion_succeeded",
-    "ingestion_skipped",
-    "ingestion_failed",
-})
-
-_REASON_CODES_FROM_M0 = _M0_REASON_STRINGS | _OTHER_REASON_STRINGS
-_GUARD_REASON_CODES = frozenset({
-    "regex_passed",
-    "regex_refused_high",
-    "regex_refused_critical",
-    "llm_guard_allow",
-    "llm_guard_downgrade",
-    "llm_guard_refuse",
-})
-
-# All V1 reason codes audit_logs may carry.
-ALL_V1_REASON_CODES = frozenset(_REASON_CODES_FROM_M0) | _GUARD_REASON_CODES
+# The allowed-code set is owned by the domain port. This module re-exports
+# it under the historical name `ALL_V1_REASON_CODES` so existing imports
+# (`from src.application.observability.logs import ALL_V1_REASON_CODES`)
+# keep working. The binding is identity (not a copy), so any future
+# extension to the canonical set in the domain port automatically
+# propagates here without an additional edit in this module.
+ALL_V1_REASON_CODES = ALLOWED_REASON_CODES
 
 
 @dataclass(frozen=True)
@@ -232,10 +219,7 @@ class RecordGuardVerdict:
         self._clock: Optional["Clock"] = clock
 
     async def execute(self, command: RecordGuardVerdictCommand) -> int:
-        if command.reason_code not in ALL_V1_REASON_CODES:
-            raise ValueError(
-                f"reason_code {command.reason_code!r} is not a V1 allowed code."
-            )
+        assert_is_allowed_reason_code(command.reason_code)
         audit = AuditEvent(
             id=None,
             created_at=_resolve_created_at(command.occurred_at, self._clock),

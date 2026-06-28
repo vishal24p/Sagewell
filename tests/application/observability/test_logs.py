@@ -23,6 +23,7 @@ from src.application.observability.logs import (
     RecordRetrievalLogCommand,
 )
 from src.domain.ports.audit_logs import AuditDecision, AuditEvent
+from src.domain.ports.reason_codes import ALLOWED_REASON_CODES, is_allowed_reason_code
 from src.domain.ports.retrieval import RetrievalStageStats
 from src.domain.ports.retrieval_logs import RetrievalLog
 
@@ -172,3 +173,44 @@ async def test_all_v1_reason_codes_include_m0_m5_m7():
         "ingestion_failed",
     ):
         assert code in ALL_V1_REASON_CODES
+
+
+# -- Consolidation: the application's allow-list must be the canonical
+# domain port's allow-list, not a duplicate. If anyone re-introduces a
+# separate application-side set, this test fails.
+
+
+async def test_all_v1_reason_codes_module_attribute_is_canonical_set():
+    """The re-export must be the canonical domain port's set, not a copy."""
+    assert ALL_V1_REASON_CODES is ALLOWED_REASON_CODES
+
+
+async def test_record_guard_verdict_predicate_matches_canonical_set():
+    """`RecordGuardVerdict` must reject codes the domain port rejects."""
+    # A code that is NOT in the canonical set must continue to raise.
+    use_case = RecordGuardVerdict(repo=_StubAuditRepo())
+    cmd = RecordGuardVerdictCommand(
+        actor_user_id=42,
+        correlation_id="corr",
+        action="regex_guard.refused",
+        reason_code="not_a_real_code_at_all",
+        metadata={},
+    )
+    with pytest.raises(ValueError):
+        await use_case.execute(cmd)
+
+
+async def test_record_guard_verdict_accepts_every_canonical_code():
+    """Round-trip every canonical code through the application validator."""
+    for code in sorted(ALLOWED_REASON_CODES):
+        repo = _StubAuditRepo()
+        use_case = RecordGuardVerdict(repo=repo)
+        cmd = RecordGuardVerdictCommand(
+            actor_user_id=None,
+            correlation_id=f"corr-code-{code}",
+            action="validation.round_trip",
+            reason_code=code,
+            metadata={},
+        )
+        await use_case.execute(cmd)
+        assert is_allowed_reason_code(code) is True
