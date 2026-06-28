@@ -82,10 +82,15 @@ ReasonCode = Literal[
 
 
 # The repository's V1-allowed set. As new reason codes are
-# introduced in their own milestones, extend this set. The
-# `is_allowed_reason_code` predicate below is the single hard
-# validation point used by every adapter (in-memory + Postgres).
-_ALLOWED_REASON_CODES: frozenset[str] = frozenset({
+# introduced in their own milestones, extend this set. This is the
+# canonical single source of truth: every adapter (in-memory + Postgres)
+# AND every application-layer validator (RecordGuardVerdict) consult
+# this same set. Adding a new reason code requires updating it in
+# exactly one place. The predicate form (`is_allowed_reason_code`)
+# and the assertion form (`assert_is_allowed_reason_code`) work
+# against this single set; they differ only in how they signal failure
+# to their callers.
+ALLOWED_REASON_CODES: frozenset[str] = frozenset({
     "missing_user_department",
     "missing_user_clearance",
     "missing_document_department",
@@ -107,14 +112,31 @@ _ALLOWED_REASON_CODES: frozenset[str] = frozenset({
 
 
 def is_allowed_reason_code(value: str) -> bool:
-    """Return True iff `value` is one of the currently allowed codes.
+    """Predicate form. Returns True iff `value` is in `ALLOWED_REASON_CODES`.
 
     The repository's V1-allowed set is the union of the seven M0
     imm codes plus any reason codes introduced by their owning
     milestones. M5 introduces `jwt_invalid` for the JWT validation
-    path; M7 introduces three ingestion outcome codes. The
-    function returns True for all of these at every adapter
-    boundary.
+    path; M7 introduces three ingestion outcome codes; M10/M11
+    add the regex / LLM guard codes. The function returns True
+    for all of these at every adapter boundary.
     """
-    return value in _ALLOWED_REASON_CODES
+    return value in ALLOWED_REASON_CODES
+
+
+def assert_is_allowed_reason_code(value: str) -> None:
+    """Assertion form. Raises `ValueError` when `value` is not allowed.
+
+    Used by application-layer validators (e.g. `RecordGuardVerdict`)
+    that want to surface an illegal code with a plain Python error.
+    The repository-layer equivalent continues to use
+    `is_allowed_reason_code` and raises `PersistenceError`. Both
+    rules express the same business contract; the canonical set
+    is the one at `ALLOWED_REASON_CODES`.
+    """
+    if value not in ALLOWED_REASON_CODES:
+        raise ValueError(
+            f"reason_code {value!r} is not in the V1 allowed set "
+            f"(see src.domain.ports.reason_codes.ALLOWED_REASON_CODES)."
+        )
 
