@@ -1,18 +1,23 @@
 """
 Postgres-backed DocumentRepository.
 
-Active-row lookups only. Methods combine department + clearance at
-the SQL level are deliberately absent; authorization is the
+Active-row lookups only. Methods that combine department + clearance
+at the SQL level are deliberately absent; authorization is the
 access-decision function's responsibility.
 
 M7 adds `upsert_by_source` for the ingestion use case. The
-implementation uses one INSERT ... ON CONFLICT ... DO UPDATE
-statement so a write does not race against a concurrent
-ingester on the same (source_system, source_id) key. The
-`was_inserted` / `was_replaced` / `was_unchanged` distinction
-derived from the RETURNING clause plus an `xmax = 0` heuristic
-that asyncpg exposes when the row was just inserted by the
-current transaction.
+implementation uses the Postgres `ON CONFLICT (source_system,
+source_id) DO UPDATE` clause together with a `SELECT id,
+content_checksum, ... FROM documents WHERE source_system = $1 AND
+source_id = $2 FOR UPDATE` pre-snapshot in the same transaction.
+The pre-snapshot locks the existing row so the writing transaction
+cannot race against a concurrent ingester on the same key. The
+(was_inserted, was_replaced, was_unchanged) outcome is then derived
+by comparing `existing["content_checksum"]` (from the pre-snapshot,
+or `None` when the row did not previously exist) to
+`command.content_checksum`. asyncpg does not surface `xmax` as a
+write-side indicator on `INSERT ... ON CONFLICT DO UPDATE`, so we
+deliberately do not rely on it.
 """
 from __future__ import annotations
 

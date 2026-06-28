@@ -37,9 +37,12 @@ def test_postgres_upsert_docstring_describes_actual_strategy():
         "SELECT pre-snapshot is locking the row"
     )
 
-    # Negative: the false "xmax = 0" claim must be absent.
-    assert "xmax" not in lowered, (
-        "module docstring must NOT claim an 'xmax = 0' heuristic; "
+    # Negative: the false "xmax = 0 heuristic" claim must be absent.
+    # `xmax` may appear inside a denial sentence ("we do not rely on
+    # xmax"); it must not appear as a positive heuristic.
+    heuristic_marker = "xmax = 0"
+    assert heuristic_marker not in lowered, (
+        "module docstring must NOT present an 'xmax = 0' heuristic; "
         "the real code uses content_checksum, not asyncpg-exposed xmax"
     )
 
